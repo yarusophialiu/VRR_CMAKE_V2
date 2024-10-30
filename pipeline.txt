@@ -1,0 +1,20 @@
+run encodedecode to generate vidoes at crf=5
+run VRR_CVVDP/enc_video.py get encode refernce videos into different bitrates
+
+
+onframerenderer: display onto the screen
+renderRT(mpRenderContextDecode, pTargetFbo, fcount, mWidth, mHeight)
+mpRenderGraph->execute(mpRenderContextDecode); // 才会有output
+encodeframebuffer() copy encoded output to mVEncodeOutData
+decodeframebuffer() copy mVEncodeOutData to packet,
+    calls back pfnDecodePicture with CUVIDPICPARAMS data for kicking of HW decoding
+
+handlePictureDecode called before blit, copy mDecodedFrame to mPDecoderOutputTexture1080:
+    dpSrcFrame will contain the CUDA device pointer to the decoded frame on the GPU.
+    copy from dpSrcFrame to mPDecoderFrame to mPDecoderRGBAFrame to mPHostRGBAFrame
+    mDecodedFrame = mPHostRGBAFrame;
+    mpRenderContextDecode->updateTextureData(mPDecoderOutputTexture1080.get(), mDecodedFrame);
+pRenderContext copy mPDecoderOutputTexture1080 to pTargetFbo
+    the decoded texture is copied or rendered to the framebuffer
+    pRenderContext->blit(mPDecoderOutputTexture1080->getSRV(), pTargetFbo->getRenderTargetView(0));
+

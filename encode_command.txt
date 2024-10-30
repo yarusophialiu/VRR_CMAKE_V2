@@ -1,0 +1,74 @@
+ffmpeg -r 80 -i 8000000_80_720.h264 -c copy enc1.mp4
+
+cvvdp --test test_files/enc_8000_30_360.h264 --ref test_files/refOutput.mp4 --display standard_fhd --full-screen-resize bilinear --temp-resample
+
+cvvdp --test test_files/enc1_new.mp4 --ref test_files/refOutput.mp4 --display standard_fhd --full-screen-resize bilinear --temp-resample
+cvvdp --test 8000000_160_1080.h264 --ref refOutput_160_1080.mp4 --display standard_fhd --full-screen-resize bilinear --temp-resample -m dm-preview-exr -o dm-preview
+cvvdp --test 8000000_160_1080.mp4 --ref refOutput_160_1080.mp4 --display standard_fhd --full-screen-resize bilinear --temp-resample -m dm-preview-exr -o dm-preview
+--verbose
+-m dm-preview-exr -o dm-preview
+
+ffmpeg -i 8000000_160_1080.h264 -vf "fps=160" frame_%04d.png
+ffmpeg -i refOutput.mp4 -vf "fps=80" frame_%04d.png
+ffmpeg -i 8000000_80_1080.h264 -r 80 -vcodec copy -acodec copy 8000000_80_1080.mp4
+ffmpeg -i 8000000_160_1080.h264 -c:v copy -f mp4 8000000_160_1080.mp4
+ffmpeg -i 8000000_160_1080.h264 -c:v copy -f mp4 8000000_160_1080.mp4
+
+
+compare dec ref
+ffmpeg -i 8000000_120_1080.h264 -vf "fps=160" frame_%04d.png
+run VRR_CVVDP playBMP.py
+in cvvdp/test_files run
+cvvdp --test 8000000_160_1080.mp4 --ref refOutput_160_1080.mp4 --display standard_fhd --full-screen-resize bilinear --temp-resample -m dm-preview-exr -o dm-preview
+
+
+nvenc
+encoding a video using FFmpeg with the NVIDIA GPU hardware acceleration (NVENC)
+-c:v specifies the video codec
+-preset:v specifies the encoding speed/quality tradeoff
+-tune:v specifies tuning options for the encoder. hq stands for high quality
+-cq:v specifies the constant quantization parameter for variable bit rate, lower values represent higher quality and larger file sizes.
+-b:v specifies the bit rate. A value of 0 indicates that the bit rate is not strictly defined and allows for maximum quality encoding given the quantization parameter
+-profile:v specifies the H.264 profile to use. high profile is suitable for high-definition video content and provides better quality at a higher computational cost compared to baseline or main profiles.
+
+encode ref.mp4 into different bitrates
+ffmpeg -i refOutput.mp4 -c:v h264_nvenc -preset:v p7 -tune:v hq -rc:v vbr -cq:v 1 -b:v 0 -profile:v high 1.mp4
+ffmpeg -i ref_crf1_160_1080.mp4 -c:v hevc_nvenc -rc cbr -b:v 7000k -maxrate 7000k -bufsize 14000k decoded_25_160_1080_7000.mp4
+
+encode bmps to ref.mp4
+ffmpeg -framerate 120 -i %d.bmp -c:v libx264 -r 120 -pix_fmt yuv420p refOutput_120_1080.mp4
+ffmpeg -framerate 120 -i %d.bmp -c:v libx264 -crf 25 -r 120 -pix_fmt yuv420p refOutput_120_1080.mp4
+ffmpeg -framerate 160 -i %d.bmp -c:v libx264 -crf 1 -r 160 -pix_fmt yuv420p ref_crf1_160_1080.mp4
+
+ffmpeg -i refOutput_120_1080_8000.mp4 -c:v hevc_nvenc -rc cbr -b:v 7000k -maxrate 7000k -bufsize 14000k -c:a copy decoded_25_120_1080_7000.mp4
+
+constant quantization parameter (CQ) for variable bit rate (VBR) is a rate control method
+used to maintain consistent video quality rather than consistent bitrate
+Constant Quantization (CQ) mode, sometimes referred to as Constant Rate Factor (CRF)
+
+now
+ffmpeg -framerate 30 -i %d.bmp -c:v libx264 -crf 5 -r 30 -pix_fmt yuv420p ref_crf5_30_1080.mp4
+ffmpeg -i ref_crf5_130_1080.mp4 -c:v hevc_nvenc -rc cbr -b:v 7000k -maxrate 7000k -bufsize 14000k encoded_5_160_1080_7000.mp4
+ffmpeg -i refOutput_166_1080_8000.mp4 -c:v hevc_nvenc -rc cbr -b:v 7000k -maxrate 7000k -bufsize 14000k encoded_5_160_1080_7000.mp4
+
+cvvdp --test 2000_30_360.mp4 --ref refOutput.mp4 --display standard_fhd --full-screen-resize bilinear --temp-resample
+
+generate reference videos and then compare
+
+
+
+07-31: find command to run on HPC
+ffmpeg -i refOutput_90_720_8000.mp4 -c:v hevc_nvenc -rc cbr -b:v 500k -maxrate 500k -bufsize 1000k 500_90_720_cbr_hevc2.mp4
+ffmpeg -i refOutput_90_720_8000.mp4 -c:v hevc -b:v 500k -bufsize 500k 500_90_720_hevc_buf500_cbr_2.mp4
+
+ffmpeg -i refOutput_90_720_8000.mp4 -c:v hevc -rc cbr -b:v 500k -maxrate 500k -bufsize 1000k 500_90_720_cbr_h265.mp4
+cvvdp --test 500_90_720_hevc_buf500_cbr_2.mp4 --ref refOutput.mp4 --display standard_fhd --full-screen-resize bilinear --temp-resample
+
+
+
+the buffer size determines the maximum amount of data that can be buffered during encoding,
+
+
+findings:
+set -bufsize to the same as -b:v
+use  -rc cbr results in higer JOD: 6.4976 [JOD] > 6.4542 [JOD]
