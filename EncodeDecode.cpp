@@ -272,7 +272,7 @@ std::pair<uint32_t, uint32_t> getRandomStartCoordinates(int frameWidth, int fram
 
 // static const Falcor::float4 kClearColor(0.38f, 0.52f, 0.10f, 1);
 // static const Falcor::float4 kClearColor(0.5f, 0.16f, 0.098f, 1);
-static const Falcor::float4 kClearColor(1.f, 0.f, 0.0f, 1);
+static const Falcor::float4 kClearColor(0.f, 0.f, 0.0f, 1);
 
 
 // constructor
@@ -316,7 +316,6 @@ EncodeDecode::EncodeDecode(const SampleAppConfig& config) : SampleApp(config)
         mPEncoderInputTexture720 = getDevice()->createTexture2D(1280, 720, ResourceFormat::BGRA8Unorm, 1, 1, nullptr, ResourceBindFlags::UnorderedAccess | ResourceBindFlags::ShaderResource | ResourceBindFlags::RenderTarget);
         mPEncoderInputTexture864 = getDevice()->createTexture2D(1536, 864, ResourceFormat::BGRA8Unorm, 1, 1, nullptr, ResourceBindFlags::UnorderedAccess | ResourceBindFlags::ShaderResource | ResourceBindFlags::RenderTarget);
         mPEncoderInputTexture1080 = getDevice()->createTexture2D(1920, 1080, ResourceFormat::BGRA8Unorm, 1, 1, nullptr, ResourceBindFlags::UnorderedAccess | ResourceBindFlags::ShaderResource | ResourceBindFlags::RenderTarget);
-
 }
 
 EncodeDecode::~EncodeDecode() {}
@@ -357,7 +356,12 @@ void EncodeDecode::onLoad(RenderContext* pRenderContext)
 
     // allocate memory so encoder can work with what we need
     makeEncoderInputBuffers(6);
-    makeEncoderOutputBuffers(6);
+    makeEncoderOutputBuffers(1); // 6
+
+    uint8_t* data = (uint8_t*)malloc(640 * 360 * 4);
+    memset(data, 255, 640 * 360 * 4);
+
+    pRenderContext->updateTextureData(mPEncoderInputTexture360.get(), data);
 }
 
 /*resize window changes the size of presenter of the decoded frame*/
@@ -468,25 +472,12 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
         // pRenderContext->blit(mpRenderGraph->getOutput("TAA.colorOut")->getSRV(), pTargetFbo->getRenderTargetView(0));
 
         // blit mprtout into smaller texture, want to encode smaller texture
-        if (mHeight == 360)// (fCount_rt > 0)
-        {
-            pRenderContext->blit(mpRenderGraph->getOutput("TAA.colorOut")->getSRV(), mPEncoderInputTexture360->getRTV(0)); // mPDecoderOutputTexture1080
-        } else if (mHeight == 480)
-        {
-            pRenderContext->blit(mpRenderGraph->getOutput("TAA.colorOut")->getSRV(), mPEncoderInputTexture480->getRTV(0));
-        } else if (mHeight == 720)
-        {
-            pRenderContext->blit(mpRenderGraph->getOutput("TAA.colorOut")->getSRV(), mPEncoderInputTexture720->getRTV(0));
-        } else if (mHeight == 720)
-        {
-            pRenderContext->blit(mpRenderGraph->getOutput("TAA.colorOut")->getSRV(), mPEncoderInputTexture864->getRTV(0));
-        } else {
-            std::cout << "mPEncoderInputTexture1080 mheight = 1080" << "\n";
-            pRenderContext->blit(mpRenderGraph->getOutput("TAA.colorOut")->getSRV(), mPEncoderInputTexture1080->getRTV(0));
-        }
+        pRenderContext->blit(mpRenderGraph->getOutput("TAA.colorOut")->getSRV(), mPEncoderInputTexture360->getRTV(0)); // mPDecoderOutputTexture1080
+        pRenderContext->blit(mpRenderGraph->getOutput("TAA.colorOut")->getSRV(), mPEncoderInputTexture480->getRTV(0)); // mPDecoderOutputTexture1080
+        pRenderContext->blit(mpRenderGraph->getOutput("TAA.colorOut")->getSRV(), mPEncoderInputTexture720->getRTV(0)); // mPDecoderOutputTexture1080
+        pRenderContext->blit(mpRenderGraph->getOutput("TAA.colorOut")->getSRV(), mPEncoderInputTexture864->getRTV(0)); // mPDecoderOutputTexture1080
+        pRenderContext->blit(mpRenderGraph->getOutput("TAA.colorOut")->getSRV(), mPEncoderInputTexture1080->getRTV(0)); // mPDecoderOutputTexture1080
 
-
-        // if (outputReferenceFrames && (fCount_rt >= frameRate))
         if (outputReferenceFrames && (fCount_rt > 0))
         {
             // std::cout<< "fCount_rt-frameRate " << fCount_rt-frameRate << "\n";
@@ -495,41 +486,47 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
             mpRenderGraph->getOutput("TAA.colorOut")->asTexture()->captureToFile(0, 0, szRefOutFilePath, Bitmap::FileFormat::BmpFile, Bitmap::ExportFlags::None, false);
         }
 
+        encodeFrameBuffer(); // write encoded data into h264
+        decodeFrameBuffer(); // mDecodedFrame updated, then call handlePictureDecode
+        getTextRenderer().render(pRenderContext, getFrameRate().getMsg(), pTargetFbo, {20, 20}); // print fps on the screen
+
+
         // std::cout << "frameCounter " << frameCounter << "\n";
         // std::cout << "fcount " << fcount << "\n";
         // frameCounter++;
 
-        if (fCount_rt > 0)  // 2
+        if (fCount_rt >= 2)  // 2
         {
             std::cout << "\nfCount_rt: " << fCount_rt << "\n";
             // mWDecodeLock = 0;
-            encodeFrameBuffer(); // write encoded data into h264
-            decodeFrameBuffer(); // mDecodedFrame updated, then call handlePictureDecode
+
 
             if (mDecodeLock != 0)
             {
-                if (mHeight == 360)
-                {
-                    // pRenderContext->updateTextureData(mPDecoderOutputTexture360.get(), mDecodedFrame);
-                    //  the decoded texture (retrieved via getSRV()) is copied or rendered to the render target view (retrieved via getRenderTargetView(0) of the framebuffer).
-                    // This is likely part of a process to display the texture onto the screen or an offscreen buffer
-                    std::cout << "onframerenderer mheight = 360" << "\n";
-                    pRenderContext->blit(mPDecoderOutputTexture360->getSRV(), pTargetFbo->getRenderTargetView(0)); // mPDecoderOutputTexture1080
-                } else if (mHeight == 480)
-                {
-                    pRenderContext->blit(mPDecoderOutputTexture480->getSRV(), pTargetFbo->getRenderTargetView(0));
-                } else if (mHeight == 720)
-                {
-                    std::cout << "onframerenderer mheight = 720" << "\n";
-                    pRenderContext->blit(mPDecoderOutputTexture720->getSRV(), pTargetFbo->getRenderTargetView(0));
-                } else if (mHeight == 864)
-                {
-                    pRenderContext->blit(mPDecoderOutputTexture864->getSRV(), pTargetFbo->getRenderTargetView(0));
-                } else
-                {
-                    std::cout << "onframerenderer mheight = 1080" << "\n";
-                    pRenderContext->blit(mPDecoderOutputTexture1080->getSRV(), pTargetFbo->getRenderTargetView(0));
-                }
+
+                pRenderContext->blit(mPDecoderOutputTexture1080->getSRV(), pTargetFbo->getRenderTargetView(0));
+
+                // if (mHeight == 360)
+                // {
+                //     // pRenderContext->updateTextureData(mPDecoderOutputTexture360.get(), mDecodedFrame);
+                //     //  the decoded texture (retrieved via getSRV()) is copied or rendered to the render target view (retrieved via getRenderTargetView(0) of the framebuffer).
+                //     // This is likely part of a process to display the texture onto the screen or an offscreen buffer
+                //     std::cout << "onframerenderer mheight = 360" << "\n";
+                //     pRenderContext->blit(mPDecoderOutputTexture360->getSRV(), pTargetFbo->getRenderTargetView(0)); // mPDecoderOutputTexture1080
+                // } else if (mHeight == 480)
+                // {
+                //     pRenderContext->blit(mPDecoderOutputTexture480->getSRV(), pTargetFbo->getRenderTargetView(0));
+                // } else if (mHeight == 720)
+                // {
+                //     std::cout << "onframerenderer mheight = 720" << "\n";
+                //     pRenderContext->blit(mPDecoderOutputTexture720->getSRV(), pTargetFbo->getRenderTargetView(0));
+                // } else if (mHeight == 864)
+                // {
+                //     pRenderContext->blit(mPDecoderOutputTexture864->getSRV(), pTargetFbo->getRenderTargetView(0));
+                // } else
+                // {
+                //     std::cout << "onframerenderer mheight = 1080" << "\n";
+                // }
             }
 
             double endTime = 0.0;
@@ -546,21 +543,21 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
                 std::this_thread::sleep_for(std::chrono::duration<float>(sleepTime));
             }
 
+        //    if (outputDecodedFrames)
+        //     {
+        //         snprintf(szDecOutFilePath, sizeof(szDecOutFilePath), "%s%d.bmp", decBaseFilePath, fcount);
+        //         writeBMP(szDecOutFilePath, mPHostRGBAFrame, mWidth, mHeight);
+        //     }
 
-            if (outputDecodedFrames)
+            if (mResolutionChange == -1)
             {
-                snprintf(szDecOutFilePath, sizeof(szDecOutFilePath), "%s%d.bmp", decBaseFilePath, fcount);
-                writeBMP(szDecOutFilePath, mPHostRGBAFrame, mWidth, mHeight);
-            }
-
-            if (fCount_rt == 20)
-            {
-                setFrameRate(10);
+                //setFrameRate(10);
                 setResolution(640, 360);
-                // setResolution(854, 480);
-                // setResolution(1536, 864);
-                // setResolution(1920, 1080);
-                // setResolution(1920, 1080);
+                mResolutionChange = 0;
+            } else if (mResolutionChange == 1) {
+
+                setResolution(1920, 1080);
+                mResolutionChange = 0;
             }
 
             // if (frameLimit > 0 && fcount >= frameLimit)
@@ -573,7 +570,9 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
         // std::cout << "fcount " << fcount << "\n";
         timeSecs += 1.0 / frameRate;
     }
-    getTextRenderer().render(pRenderContext, getFrameRate().getMsg(), pTargetFbo, {20, 20}); // print fps on the screen
+
+    mOldWidth = mWidth;
+    mOldHeight = mHeight;
 
 
 }
@@ -598,14 +597,17 @@ void EncodeDecode::onGuiRender(Gui* pGui)
 
 bool EncodeDecode::onKeyEvent(const KeyboardEvent& keyEvent)
 {
-    if (keyEvent.key == Input::Key::Space && keyEvent.type == KeyboardEvent::Type::KeyPressed)
-    {
-        mRayTrace = !mRayTrace;
+    if (keyEvent.key == Falcor::Input::Key::Up) {
+
+        mResolutionChange = 1;
+
+        return true;
+    } else if (keyEvent.key == Falcor::Input::Key::Down) {
+
+        mResolutionChange = -1;
+
         return true;
     }
-
-    if (mpScene && mpScene->onKeyEvent(keyEvent))
-        return true;
 
     return false;
 }
@@ -978,20 +980,20 @@ void EncodeDecode::makeEncoderOutputBuffers(uint32_t numOutputBuffers)
     heapProps.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
 
     // TODO: resourceDesc might be unecessary
-    D3D12_RESOURCE_DESC resourceDesc = createEncoderOutputResourceDesc(mWidth, mHeight);
-    D3D12_RESOURCE_DESC resourceDesc360 = createEncoderOutputResourceDesc(640, 360);
-    D3D12_RESOURCE_DESC resourceDesc480 = createEncoderOutputResourceDesc(854, 480);
-    D3D12_RESOURCE_DESC resourceDesc720 = createEncoderOutputResourceDesc(1280, 720);
-    D3D12_RESOURCE_DESC resourceDesc864 = createEncoderOutputResourceDesc(1536, 864);
-    D3D12_RESOURCE_DESC resourceDesc1080 = createEncoderOutputResourceDesc(1920, 1080);
+    D3D12_RESOURCE_DESC resourceDesc = createEncoderOutputResourceDesc(1920, 1080); // (mWidth, mHeight);
+    // D3D12_RESOURCE_DESC resourceDesc360 = createEncoderOutputResourceDesc(640, 360);
+    // D3D12_RESOURCE_DESC resourceDesc480 = createEncoderOutputResourceDesc(854, 480);
+    // D3D12_RESOURCE_DESC resourceDesc720 = createEncoderOutputResourceDesc(1280, 720);
+    // D3D12_RESOURCE_DESC resourceDesc864 = createEncoderOutputResourceDesc(1536, 864);
+    // D3D12_RESOURCE_DESC resourceDesc1080 = createEncoderOutputResourceDesc(1920, 1080);
 
     mVOutputBuffers.resize(numOutputBuffers);
     mpD3D12Device->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &resourceDesc, initialResourceState, nullptr, IID_PPV_ARGS(&mVOutputBuffers[0]));
-    mpD3D12Device->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &resourceDesc360, initialResourceState, nullptr, IID_PPV_ARGS(&mVOutputBuffers[1]));
-    mpD3D12Device->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &resourceDesc480, initialResourceState, nullptr, IID_PPV_ARGS(&mVOutputBuffers[2]));
-    mpD3D12Device->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &resourceDesc720, initialResourceState, nullptr, IID_PPV_ARGS(&mVOutputBuffers[3]));
-    mpD3D12Device->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &resourceDesc864, initialResourceState, nullptr, IID_PPV_ARGS(&mVOutputBuffers[4]));
-    mpD3D12Device->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &resourceDesc1080, initialResourceState, nullptr, IID_PPV_ARGS(&mVOutputBuffers[5]));
+    // mpD3D12Device->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &resourceDesc360, initialResourceState, nullptr, IID_PPV_ARGS(&mVOutputBuffers[1]));
+    // mpD3D12Device->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &resourceDesc480, initialResourceState, nullptr, IID_PPV_ARGS(&mVOutputBuffers[2]));
+    // mpD3D12Device->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &resourceDesc720, initialResourceState, nullptr, IID_PPV_ARGS(&mVOutputBuffers[3]));
+    // mpD3D12Device->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &resourceDesc864, initialResourceState, nullptr, IID_PPV_ARGS(&mVOutputBuffers[4]));
+    // mpD3D12Device->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &resourceDesc1080, initialResourceState, nullptr, IID_PPV_ARGS(&mVOutputBuffers[5]));
 
     registerEncoderOutputResources();
 
@@ -1148,19 +1150,20 @@ void EncodeDecode::registerEncoderOutputResources()
 {
     // TODO: only need 1 outputbuffer, set to 1080p
     // bfrSize = getEncoderOutputBufferSize(mWidth, mHeight)
-    NV_ENC_REGISTERED_PTR registeredPtr = registerNVEncResource(mVOutputBuffers[0], NV_ENC_INPUT_RESOURCE_TYPE_DIRECTX, getEncoderOutputBufferSize(mWidth, mHeight), 1, 0, NV_ENC_BUFFER_FORMAT_U8, NV_ENC_OUTPUT_BITSTREAM);
-    NV_ENC_REGISTERED_PTR registeredPtr360 = registerNVEncResource(mVOutputBuffers[1], NV_ENC_INPUT_RESOURCE_TYPE_DIRECTX, getEncoderOutputBufferSize(640, 360), 1, 0, NV_ENC_BUFFER_FORMAT_U8, NV_ENC_OUTPUT_BITSTREAM);
-    NV_ENC_REGISTERED_PTR registeredPtr480 = registerNVEncResource(mVOutputBuffers[2], NV_ENC_INPUT_RESOURCE_TYPE_DIRECTX, getEncoderOutputBufferSize(854, 480), 1, 0, NV_ENC_BUFFER_FORMAT_U8, NV_ENC_OUTPUT_BITSTREAM);
-    NV_ENC_REGISTERED_PTR registeredPtr720 = registerNVEncResource(mVOutputBuffers[3], NV_ENC_INPUT_RESOURCE_TYPE_DIRECTX, getEncoderOutputBufferSize(1280, 720), 1, 0, NV_ENC_BUFFER_FORMAT_U8, NV_ENC_OUTPUT_BITSTREAM);
-    NV_ENC_REGISTERED_PTR registeredPtr864 = registerNVEncResource(mVOutputBuffers[4], NV_ENC_INPUT_RESOURCE_TYPE_DIRECTX, getEncoderOutputBufferSize(1536, 864), 1, 0, NV_ENC_BUFFER_FORMAT_U8, NV_ENC_OUTPUT_BITSTREAM);
-    NV_ENC_REGISTERED_PTR registeredPtr1080 = registerNVEncResource(mVOutputBuffers[5], NV_ENC_INPUT_RESOURCE_TYPE_DIRECTX, getEncoderOutputBufferSize(1920, 1080), 1, 0, NV_ENC_BUFFER_FORMAT_U8, NV_ENC_OUTPUT_BITSTREAM);
+    NV_ENC_REGISTERED_PTR registeredPtr = registerNVEncResource(mVOutputBuffers[0], NV_ENC_INPUT_RESOURCE_TYPE_DIRECTX, \
+                getEncoderOutputBufferSize(1920, 1080), 1, 0, NV_ENC_BUFFER_FORMAT_U8, NV_ENC_OUTPUT_BITSTREAM); // mWidth, mHeight
+    // NV_ENC_REGISTERED_PTR registeredPtr360 = registerNVEncResource(mVOutputBuffers[1], NV_ENC_INPUT_RESOURCE_TYPE_DIRECTX, getEncoderOutputBufferSize(640, 360), 1, 0, NV_ENC_BUFFER_FORMAT_U8, NV_ENC_OUTPUT_BITSTREAM);
+    // NV_ENC_REGISTERED_PTR registeredPtr480 = registerNVEncResource(mVOutputBuffers[2], NV_ENC_INPUT_RESOURCE_TYPE_DIRECTX, getEncoderOutputBufferSize(854, 480), 1, 0, NV_ENC_BUFFER_FORMAT_U8, NV_ENC_OUTPUT_BITSTREAM);
+    // NV_ENC_REGISTERED_PTR registeredPtr720 = registerNVEncResource(mVOutputBuffers[3], NV_ENC_INPUT_RESOURCE_TYPE_DIRECTX, getEncoderOutputBufferSize(1280, 720), 1, 0, NV_ENC_BUFFER_FORMAT_U8, NV_ENC_OUTPUT_BITSTREAM);
+    // NV_ENC_REGISTERED_PTR registeredPtr864 = registerNVEncResource(mVOutputBuffers[4], NV_ENC_INPUT_RESOURCE_TYPE_DIRECTX, getEncoderOutputBufferSize(1536, 864), 1, 0, NV_ENC_BUFFER_FORMAT_U8, NV_ENC_OUTPUT_BITSTREAM);
+    // NV_ENC_REGISTERED_PTR registeredPtr1080 = registerNVEncResource(mVOutputBuffers[5], NV_ENC_INPUT_RESOURCE_TYPE_DIRECTX, getEncoderOutputBufferSize(1920, 1080), 1, 0, NV_ENC_BUFFER_FORMAT_U8, NV_ENC_OUTPUT_BITSTREAM);
 
     mVRegisteredResourcesOutputBuffer.push_back(registeredPtr);
-    mVRegisteredResourcesOutputBuffer.push_back(registeredPtr360);
-    mVRegisteredResourcesOutputBuffer.push_back(registeredPtr480);
-    mVRegisteredResourcesOutputBuffer.push_back(registeredPtr720);
-    mVRegisteredResourcesOutputBuffer.push_back(registeredPtr864);
-    mVRegisteredResourcesOutputBuffer.push_back(registeredPtr1080);
+    // mVRegisteredResourcesOutputBuffer.push_back(registeredPtr360);
+    // mVRegisteredResourcesOutputBuffer.push_back(registeredPtr480);
+    // mVRegisteredResourcesOutputBuffer.push_back(registeredPtr720);
+    // mVRegisteredResourcesOutputBuffer.push_back(registeredPtr864);
+    // mVRegisteredResourcesOutputBuffer.push_back(registeredPtr1080);
 
     mVMappedOutputBuffers.resize(mVOutputBuffers.size());
 }
@@ -1180,10 +1183,10 @@ void EncodeDecode::mapEncoderResource(uint32_t bufferIndex)
     // initialize an instance for mapping the output buffer
     NV_ENC_MAP_INPUT_RESOURCE mapInputResourceBitstreamBuffer = {NV_ENC_MAP_INPUT_RESOURCE_VER};
     //  resources where the encoded bitstream will be written
-    mapInputResourceBitstreamBuffer.registeredResource = mVRegisteredResourcesOutputBuffer[bufferIndex];
+    mapInputResourceBitstreamBuffer.registeredResource = mVRegisteredResourcesOutputBuffer[0]; // [bufferIndex];
     NVENC_API_CALL(mNVEnc.nvEncMapInputResource(mHEncoder, &mapInputResourceBitstreamBuffer));
     // output buffer is encoded video data
-    mVMappedOutputBuffers[bufferIndex] = mapInputResourceBitstreamBuffer.mappedResource;
+    mVMappedOutputBuffers[0] = mapInputResourceBitstreamBuffer.mappedResource;
 }
 
 void EncodeDecode::cpuWaitForFencePoint(ID3D12Fence* pFence, uint64_t nFenceValue)
@@ -1227,7 +1230,7 @@ map resources into memory, set picture params
 */
 NVENCSTATUS EncodeDecode::encodeFrameBuffer()
 {
-    int bufferIndex = getResolutionIndex(mHeight);
+    int bufferIndex = getResolutionIndex(mOldHeight);
     NV_ENC_PIC_PARAMS picParams = {};
     // setting up the encoder with input and output buffer
     // input frames is raw video data and output frames is encoded video data
@@ -1237,26 +1240,28 @@ NVENCSTATUS EncodeDecode::encodeFrameBuffer()
     InterlockedIncrement(&mNOutputFenceVal);
 
     NV_ENC_INPUT_PTR inputBuffer = mVMappedInputBuffers[bufferIndex];
-    NV_ENC_OUTPUT_PTR outputBuffer = mVMappedOutputBuffers[bufferIndex];
+    NV_ENC_OUTPUT_PTR outputBuffer = mVMappedOutputBuffers[0];
 
     mVInputRsrc[bufferIndex]->pInputBuffer = inputBuffer;
     mVInputRsrc[bufferIndex]->inputFencePoint.waitValue = mNInputFenceVal;
     mVInputRsrc[bufferIndex]->inputFencePoint.bWait = true;
 
-    mVOutputRsrc[bufferIndex]->pOutputBuffer = outputBuffer;
-    mVOutputRsrc[bufferIndex]->outputFencePoint.signalValue = mNOutputFenceVal;
-    mVOutputRsrc[bufferIndex]->outputFencePoint.bSignal = true;
+    mVOutputRsrc[0]->pOutputBuffer = outputBuffer;
+    mVOutputRsrc[0]->outputFencePoint.signalValue = mNOutputFenceVal;
+    mVOutputRsrc[0]->outputFencePoint.bSignal = true;
 
     picParams.version = NV_ENC_PIC_PARAMS_VER;
     picParams.pictureStruct = NV_ENC_PIC_STRUCT_FRAME;
     picParams.inputBuffer = mVInputRsrc[bufferIndex];
     picParams.bufferFmt = mEBufferFormat;
-    picParams.inputWidth = mWidth;
-    picParams.inputHeight = mHeight;
-    picParams.outputBitstream = mVOutputRsrc[bufferIndex];
+    picParams.inputWidth = mOldWidth;
+    picParams.inputHeight = mOldHeight;
+    picParams.outputBitstream = mVOutputRsrc[0];
     picParams.completionEvent = mVPCompletionEvent[bufferIndex];
     // encoded results written to mVOutputRsrc
     NVENCSTATUS nvStatus = mNVEnc.nvEncEncodePicture(mHEncoder, &picParams);
+
+    std::cout << "Endcoding dimensions: " << mWidth << "x" << mHeight << "\n";
 
     static int fCount = 0;
     waitForCompletionEvent(bufferIndex); // wait for nvEncEncodePicture to finish
@@ -1284,7 +1289,7 @@ NVENCSTATUS EncodeDecode::encodeFrameBuffer()
     */
     // NV_ENC_LOCK_BITSTREAM initialized to specify details about lock operation
     NV_ENC_LOCK_BITSTREAM lockBitstreamData = {NV_ENC_LOCK_BITSTREAM_VER};
-    lockBitstreamData.outputBitstream = mVOutputRsrc[bufferIndex];
+    lockBitstreamData.outputBitstream = mVOutputRsrc[0];
     lockBitstreamData.doNotWait = false; // function should wait until the bitstream data is available.
     // nvEncLockBitstream lock the bitstream data associated with the encoder (mHEncoder)
     NVENC_API_CALL(mNVEnc.nvEncLockBitstream(mHEncoder, &lockBitstreamData));
@@ -1299,8 +1304,8 @@ NVENCSTATUS EncodeDecode::encodeFrameBuffer()
     NVENC_API_CALL(mNVEnc.nvEncUnmapInputResource(mHEncoder, mVMappedInputBuffers[bufferIndex]));
     mVMappedInputBuffers[bufferIndex] = nullptr;
 
-    NVENC_API_CALL(mNVEnc.nvEncUnmapInputResource(mHEncoder, mVMappedOutputBuffers[bufferIndex]));
-    mVMappedOutputBuffers[bufferIndex] = nullptr;
+    NVENC_API_CALL(mNVEnc.nvEncUnmapInputResource(mHEncoder, mVMappedOutputBuffers[0]));
+    mVMappedOutputBuffers[0] = nullptr;
     return nvStatus;
 }
 
@@ -1323,6 +1328,7 @@ void EncodeDecode::makeDefaultDecodingParams(CUVIDDECODECREATEINFO* pInitializeP
     pInitializeParams->ulTargetHeight = mHeight;
     pInitializeParams->enableHistogram = 0;
 }
+
 
 void EncodeDecode::initDecoder()
 {
@@ -1360,7 +1366,7 @@ void EncodeDecode::initDecoder()
     videoParserParameters.ulClockRate = 0;
     videoParserParameters.ulMaxDisplayDelay = 0; // 0 = no delay
     videoParserParameters.pUserData = this;
-    videoParserParameters.pfnSequenceCallback = nullptr; // nullptr
+    videoParserParameters.pfnSequenceCallback = HandleSequenceChangeProc; // nullptr
     videoParserParameters.pfnDecodePicture = HandlePictureDecodeProc; // called once per frame
     videoParserParameters.pfnDisplayPicture = nullptr;
     videoParserParameters.pfnGetOperatingPoint = nullptr;
@@ -1426,13 +1432,50 @@ void EncodeDecode::decodeFrameBuffer()
     CUVIDSOURCEDATAPACKET packet = {0};
     packet.payload = mVEncodeOutData.data();
     packet.payload_size = mVEncodeOutData.size();
+
     // packet.flags |= CUVID_PKT_DISCONTINUITY;
     // bitstream_size += mVEncodeOutData.size();
     // std::cout << "mVEncodeOutData.size() " << mVEncodeOutData.size() << "\n";
     NVDEC_API_CALL(cuvidParseVideoData(mHParser, &packet));
 }
 
+int EncodeDecode::handleSequenceChange(CUVIDEOFORMAT* pFormat) {
 
+    std::cout << "Resolution changed\n";
+
+    unsigned int width = pFormat->coded_width;
+    unsigned int height = pFormat->coded_height;
+
+    if (mHDecoder != nullptr)
+        {
+            std::cout << "setting resolution\n";
+
+            CUVIDRECONFIGUREDECODERINFO decoder_reconifg_info = {0};
+            decoder_reconifg_info.ulWidth = mWidth; // mWidth throws cuvidDecodePicture(mHDecoder, pPicParams) returned error 1
+            decoder_reconifg_info.ulHeight = mHeight; // mHeight throws cuvidDecodePicture(mHDecoder, pPicParams) returned error 1
+            // Post-Processed Output Resolution, ensures that the 640x360 frame is scaled up correctly to 1920x1080
+            // scale the decoded scene
+            decoder_reconifg_info.ulTargetWidth = 1920; // 1920; if set to mWidth, animation of 640x360 runs on the top left corner
+            decoder_reconifg_info.ulTargetHeight = 1080; // 1080;
+
+            // source cropping, ensure that the entire decoded frame is displayed
+            decoder_reconifg_info.display_area.left = 0;
+            decoder_reconifg_info.display_area.right = decoder_reconifg_info.ulWidth; // mWidth; 1920 左上角出现画中画
+            decoder_reconifg_info.display_area.top = 0;
+            decoder_reconifg_info.display_area.bottom = decoder_reconifg_info.ulHeight; //mHeight;
+
+            // Aspect Ratio Conversion， ensures that the 640x360 decoded frame is upscaled and displayed within the 1920x1080 target area
+            decoder_reconifg_info.target_rect.left = 0;
+            decoder_reconifg_info.target_rect.right = 1920; // 1920;
+            decoder_reconifg_info.target_rect.top = 0;
+            decoder_reconifg_info.target_rect.bottom = 1080; // 1080;
+
+            cuvidReconfigureDecoder(mHDecoder, &decoder_reconifg_info);
+        }
+
+
+    return 1;
+}
 
 // callback function: called as soon as picture get decoded
 // don't know when it's decoded
@@ -1442,6 +1485,9 @@ int EncodeDecode::handlePictureDecode(CUVIDPICPARAMS* pPicParams)
     static int count = 0;
     // We have parsed an entire frame! Now let's decode it
     // std::cout << "Frame found: " << count++ << "\n\n";
+
+    std::cout << "Pic params width: " << pPicParams->PicWidthInMbs * 16 << "\n";
+    std::cout << "Old width: " << mOldWidth << "\n";
 
     //  A context represents the environment in which CUDA operations and computations take place
     CUDA_DRVAPI_CALL(cuCtxPushCurrent(mCudaContext)); // CUDA contexts are used to manage the state of the CUDA runtime
@@ -1490,14 +1536,14 @@ int EncodeDecode::handlePictureDecode(CUVIDPICPARAMS* pPicParams)
     m.srcPitch = nSrcPitch;                                  // pitch (or width) of the source memory in bytes
     m.dstMemoryType = CU_MEMORYTYPE_DEVICE;                  // destination memory is located on the GPU
     m.dstDevice = (CUdeviceptr)(m.dstHost = mPDecoderFrame); // assign the destination device pointer
-    m.dstPitch = mWidth; // 1920; mWidth TODO
-    m.WidthInBytes = mWidth; // 1920; mWidth
-    m.Height = mHeight; // 1080; mHeight
+    m.dstPitch = 1920; // 1920; mWidth
+    m.WidthInBytes = 1920; // 1920; mWidth
+    m.Height = 1080; // 1080; mHeight
     // cuMemcpy2DAsync(&m, mCuvidStream)
     CUDA_DRVAPI_CALL(cuMemcpy2D(&m)); // CUDA function for asynchronously copying memory between two 2D memory regions
-    m.srcDevice = (CUdeviceptr)((uint8_t*)dpSrcFrame + m.srcPitch * ((mHeight + 1) & ~1)); // updated with a new source device pointer
-    m.dstDevice = (CUdeviceptr)(m.dstHost = mPDecoderFrame + m.dstPitch * mHeight);
-    m.Height = (int)(ceil(mHeight * 0.5));
+    m.srcDevice = (CUdeviceptr)((uint8_t*)dpSrcFrame + m.srcPitch * ((1080 + 1) & ~1)); // updated with a new source device pointer
+    m.dstDevice = (CUdeviceptr)(m.dstHost = mPDecoderFrame + m.dstPitch * m.Height);
+    m.Height = (int)(ceil(m.Height * 0.5));
 
     CUDA_DRVAPI_CALL(cuMemcpy2D(&m));
     CUDA_DRVAPI_CALL(cuCtxPopCurrent(NULL));
@@ -1512,11 +1558,11 @@ int EncodeDecode::handlePictureDecode(CUVIDPICPARAMS* pPicParams)
     // data type is cast to uint8_t*, indicating that the output data is treated as an array of bytes
     // mPDecoderRGBAFrame would represent the frame in BGRA32 format
     // mWidth * 4: The pitch (stride) of the output data
-    Nv12ToColor32<BGRA32>(mPDecoderFrame, mWidth, (uint8_t*)mPDecoderRGBAFrame, mWidth * 4, mWidth, mHeight);
+    Nv12ToColor32<BGRA32>(mPDecoderFrame, 1920, (uint8_t*)mPDecoderRGBAFrame, 1920 * 4, 1920, 1080);
 
     CUDA_DRVAPI_CALL(cuCtxPushCurrent(mCudaContext)); // push the CUDA context (mCudaContext) onto the current thread's CUDA context stack.
     //  copying data from mPDecoderRGBAFrame (GPU device memory) to mPHostRGBAFrame (CPU host memory)
-    CUDA_DRVAPI_CALL(cuMemcpyDtoH(mPHostRGBAFrame, mPDecoderRGBAFrame, mWidth * mHeight * 4));
+    CUDA_DRVAPI_CALL(cuMemcpyDtoH(mPHostRGBAFrame, mPDecoderRGBAFrame, 1920 * 1080 * 4));
 
     CUDA_DRVAPI_CALL(cuCtxPopCurrent(NULL)); // o pop the current CUDA context off the CUDA context stack to release resources
 
@@ -1529,28 +1575,15 @@ int EncodeDecode::handlePictureDecode(CUVIDPICPARAMS* pPicParams)
     // if (presenterPtr) {
     // pRenderContext->updateTextureData(mDecodedFrame, mPHostRGBAFrame);
     mDecodedFrame = mPHostRGBAFrame;
+
+    // static int fcount = 0;
+    // snprintf(szDecOutFilePath, sizeof(szDecOutFilePath), "%s%d.bmp", decBaseFilePath, fcount);
+    // writeBMP(szDecOutFilePath, mDecodedFrame, 1920, 1080);
+    // ++fcount;
+
     // presenterPtr->PresentDeviceFrame((uint8_t*)mPDecoderRGBAFrame, mWidth * 4, 0);
     // }
-    if (mHeight == 360)
-    {
-        std::cout << "handlePictureDecode: mheight = 360" << "\n";
-        // copy mDecodedFrame into mPDecoderOutputTexture1080
-        // blit requires both the source and destination to be GPU resources
-        // mDecodedFrame appears to be a CPU-side data buffer, whereas mPDecoderOutputTexture360 is likely a GPU texture resource.
-        mpRenderContextDecode->updateTextureData(mPDecoderOutputTexture360.get(), mDecodedFrame);
-    } else if (mHeight == 480)
-    {
-        mpRenderContextDecode->updateTextureData(mPDecoderOutputTexture480.get(), mDecodedFrame);
-    } else if (mHeight == 720)
-    {
-        mpRenderContextDecode->updateTextureData(mPDecoderOutputTexture720.get(), mDecodedFrame);
-    } else if (mHeight == 864)
-    {
-        mpRenderContextDecode->updateTextureData(mPDecoderOutputTexture864.get(), mDecodedFrame);
-    } else
-    {
-        mpRenderContextDecode->updateTextureData(mPDecoderOutputTexture1080.get(), mDecodedFrame);
-    }
+    mpRenderContextDecode->updateTextureData(mPDecoderOutputTexture1080.get(), mDecodedFrame);
 
     mDecodeLock = 1;
     return 0;
@@ -1701,6 +1734,7 @@ void EncodeDecode::setResolution(unsigned int width, unsigned int height)
 {
     mWidth = width;
     mHeight = height;
+
     if (mHEncoder != nullptr)
     {
         mEncoderInitializeParams.encodeWidth = width; // width only shows the cropped scene, 1920 works for 360p
@@ -1711,8 +1745,8 @@ void EncodeDecode::setResolution(unsigned int width, unsigned int height)
         NV_ENC_RECONFIGURE_PARAMS reconfig_params;
         // memset(&reconfig_params, 0, sizeof(reconfig_params));
         reconfig_params.reInitEncodeParams = mEncoderInitializeParams;
-        // reconfig_params.resetEncoder = 1;
-        reconfig_params.forceIDR = 1;
+        reconfig_params.resetEncoder = 0;
+        reconfig_params.forceIDR = 0;
         reconfig_params.version = NV_ENC_RECONFIGURE_PARAMS_VER;
         NVENC_API_CALL(mNVEnc.nvEncReconfigureEncoder(mHEncoder, &reconfig_params));
 
@@ -1722,31 +1756,8 @@ void EncodeDecode::setResolution(unsigned int width, unsigned int height)
         //     presenterPtr->nHeight = height;
         // }
 
-        if (mHDecoder != nullptr)
-        {
-            CUVIDRECONFIGUREDECODERINFO decoder_reconifg_info = {0};
-            decoder_reconifg_info.ulWidth = mWidth; // mWidth throws cuvidDecodePicture(mHDecoder, pPicParams) returned error 1
-            decoder_reconifg_info.ulHeight = mHeight; // mHeight throws cuvidDecodePicture(mHDecoder, pPicParams) returned error 1
-            // Post-Processed Output Resolution, ensures that the 640x360 frame is scaled up correctly to 1920x1080
-            // scale the decoded scene
-            decoder_reconifg_info.ulTargetWidth = mWidth; // 1920; if set to mWidth, animation of 640x360 runs on the top left corner
-            decoder_reconifg_info.ulTargetHeight = mHeight; // 1080;
-
-            // source cropping, ensure that the entire decoded frame is displayed
-            decoder_reconifg_info.display_area.left = 0;
-            decoder_reconifg_info.display_area.right = decoder_reconifg_info.ulWidth; // mWidth; 1920 左上角出现画中画
-            decoder_reconifg_info.display_area.top = 0;
-            decoder_reconifg_info.display_area.bottom = decoder_reconifg_info.ulHeight; //mHeight;
-
-            // Aspect Ratio Conversion， ensures that the 640x360 decoded frame is upscaled and displayed within the 1920x1080 target area
-            decoder_reconifg_info.target_rect.left = 0;
-            decoder_reconifg_info.target_rect.right = mWidth; // 1920;
-            decoder_reconifg_info.target_rect.top = 0;
-            decoder_reconifg_info.target_rect.bottom = mHeight; // 1080;
-
-            cuvidReconfigureDecoder(mHDecoder, &decoder_reconifg_info);
-        }
     }
+
 
 }
 
@@ -1879,6 +1890,8 @@ int runMain(int argc, char** argv)
     encodeDecode.setBitRate(bitrate * 1000); // 3000 bits per second,  3000 000 bits per second
     encodeDecode.setFrameRate(framerate);
     encodeDecode.setResolution(width, height);
+    encodeDecode.mWidth = width;
+    encodeDecode.mHeight = height;
     // encodeDecode.setRefPrefix(scene, speedInput);
     encodeDecode.setDefaultScene(scenePath);
     encodeDecode.setSpeed(speedInput);

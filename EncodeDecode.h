@@ -141,6 +141,12 @@ public:
         return ((EncodeDecode*)pUserData)->handlePictureDecode(pPicParams);
     }
     int handlePictureDecode(CUVIDPICPARAMS* pPicParams);
+    static int CUDAAPI HandleSequenceChangeProc(void* pUserData, CUVIDEOFORMAT* pFormat)
+    {
+        std::cout << "Set resolution callback\n";
+        return ((EncodeDecode*)pUserData)->handleSequenceChange(pFormat);
+    }
+    int handleSequenceChange(CUVIDEOFORMAT* pFormat);
     int getDecoderFrameSize();
 
 
@@ -328,6 +334,10 @@ private:
 public:
     uint32_t mWidth;
     uint32_t mHeight;
+    uint32_t mOldWidth = 0;
+    uint32_t mOldHeight = 0;
+
+    int mResolutionChange = 0;
 
     ref<Scene> mpScene;
     ref<Camera> mpCamera;
