@@ -4,7 +4,7 @@
 
 #include <filesystem>
 #include <iostream>
-// #include <curl/curl.h>
+#include <curl/curl.h>
 #include <d3d12.h>
 #include <d3d11.h>
 #include <dxgi1_4.h>
@@ -178,78 +178,77 @@ std::pair<uint32_t, uint32_t> getRandomStartCoordinates(int frameWidth, int fram
 }
 
 
-// // Encode the patch data as base64 string
-// std::string base64_encode_patch(const std::vector<uint8_t>& patchData) {
-//     return cppcodec::base64_rfc4648::encode(patchData);
-// }
+// Encode the patch data as base64 string
+std::string base64_encode_patch(const std::vector<uint8_t>& patchData) {
+    return cppcodec::base64_rfc4648::encode(patchData);
+}
 
-// // Function to asynchronously send patch and velocity to the HTTP server
-// // const std::vector<std::vector<float>>& patch
-// void send_http_request_async(const std::vector<uint8_t>& patchData, float velocity) {
-//     std::thread([patchData, velocity]() {
-//         auto start = std::chrono::high_resolution_clock::now();
+// Function to asynchronously send patch and velocity to the HTTP server
+// const std::vector<std::vector<float>>& patch
+void send_http_request_async(const std::vector<uint8_t>& patchData, float velocity) {
+    std::thread([patchData, velocity]() {
+        auto start = std::chrono::high_resolution_clock::now();
 
-//         CURLM* multi_handle;
-//         CURL* easy_handle;
-//         // When still_running becomes 0, it means all HTTP requests have completed, and you can proceed with any post-processing steps or cleanup.
-//         int still_running = 0; // Number of active transfers
+        CURLM* multi_handle;
+        CURL* easy_handle;
+        // When still_running becomes 0, it means all HTTP requests have completed, and you can proceed with any post-processing steps or cleanup.
+        int still_running = 0; // Number of active transfers
 
-//         // Create a JSON object with patch and velocity
-//         nlohmann::json j;
-//         // Base64 encode the patch data and add to the JSON
-//         std::string encodedPatch = base64_encode_patch(patchData);
-//         j["patch"] = encodedPatch;
-//         j["velocity"] = velocity;
+        // Create a JSON object with patch and velocity
+        nlohmann::json j;
+        // Base64 encode the patch data and add to the JSON
+        std::string encodedPatch = base64_encode_patch(patchData);
+        j["patch"] = encodedPatch;
+        j["velocity"] = velocity;
 
-//         // Convert JSON to string
-//         std::string json_str = j.dump();
-//         // Initialize curl easy and multi handles
-//         easy_handle = curl_easy_init();
-//         multi_handle = curl_multi_init();
+        // Convert JSON to string
+        std::string json_str = j.dump();
+        // Initialize curl easy and multi handles
+        easy_handle = curl_easy_init();
+        multi_handle = curl_multi_init();
 
-//         if (easy_handle && multi_handle) {
-//             // Set URL and POST data
-//             curl_easy_setopt(easy_handle, CURLOPT_URL, "http://localhost:8000/predict");
-//             curl_easy_setopt(easy_handle, CURLOPT_POSTFIELDS, json_str.c_str());
+        if (easy_handle && multi_handle) {
+            // Set URL and POST data
+            curl_easy_setopt(easy_handle, CURLOPT_URL, "http://localhost:8000/predict");
+            curl_easy_setopt(easy_handle, CURLOPT_POSTFIELDS, json_str.c_str());
 
-//             // Set HTTP headers
-//             struct curl_slist* headers = NULL;
-//             headers = curl_slist_append(headers, "Content-Type: application/json");
-//             curl_easy_setopt(easy_handle, CURLOPT_HTTPHEADER, headers);
-//             // Add easy handle to multi handle
-//             curl_multi_add_handle(multi_handle, easy_handle);
+            // Set HTTP headers
+            struct curl_slist* headers = NULL;
+            headers = curl_slist_append(headers, "Content-Type: application/json");
+            curl_easy_setopt(easy_handle, CURLOPT_HTTPHEADER, headers);
+            // Add easy handle to multi handle
+            curl_multi_add_handle(multi_handle, easy_handle);
 
-//             auto now = std::chrono::system_clock::now();
-//             std::time_t currentTime = std::chrono::system_clock::to_time_t(now); // getting calendar time
-//             std::tm* localTime = std::localtime(&currentTime);
-//             std::cout << "Current local time: " << std::put_time(localTime, "%Y-%m-%d %H:%M:%S") << std::endl;
-//             auto stop1 = std::chrono::high_resolution_clock::now();
-//             std::chrono::duration<double> elapsed_seconds_stop0 = stop1 - start;
-//             std::cout << "Before send patch takes: " << elapsed_seconds_stop0.count() << " seconds\n";
+            auto now = std::chrono::system_clock::now();
+            std::time_t currentTime = std::chrono::system_clock::to_time_t(now); // getting calendar time
+            std::tm* localTime = std::localtime(&currentTime);
+            std::cout << "Current local time: " << std::put_time(localTime, "%Y-%m-%d %H:%M:%S") << std::endl;
+            auto stop1 = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double> elapsed_seconds_stop0 = stop1 - start;
+            std::cout << "Before send patch takes: " << elapsed_seconds_stop0.count() << " seconds\n";
 
-//             // Perform the request asynchronously
-//             curl_multi_perform(multi_handle, &still_running);
+            // Perform the request asynchronously
+            curl_multi_perform(multi_handle, &still_running);
 
-//             // Polling loop to check the status of the request
-//             while (still_running) {
-//                 int numfds;
-//                 curl_multi_wait(multi_handle, NULL, 0, 1000, &numfds);  // Wait for data/events
-//                 curl_multi_perform(multi_handle, &still_running);       // Perform any outstanding transfers
-//             }
+            // Polling loop to check the status of the request
+            while (still_running) {
+                int numfds;
+                curl_multi_wait(multi_handle, NULL, 0, 1000, &numfds);  // Wait for data/events
+                curl_multi_perform(multi_handle, &still_running);       // Perform any outstanding transfers
+            }
 
-//             auto end = std::chrono::high_resolution_clock::now();
-//             std::chrono::duration<double> elapsed_seconds_stop1 = end - stop1;
-//             std::chrono::duration<double> elapsed_seconds = end - start;
-//             std::cout << "Request round trip: " << elapsed_seconds_stop1.count() << " seconds\n";
-//             std::cout << "Request completed in: " << elapsed_seconds.count() << " seconds\n";
+            auto end = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double> elapsed_seconds_stop1 = end - stop1;
+            std::chrono::duration<double> elapsed_seconds = end - start;
+            std::cout << "Request round trip: " << elapsed_seconds_stop1.count() << " seconds\n";
+            std::cout << "Request completed in: " << elapsed_seconds.count() << " seconds\n";
 
-
-//             curl_multi_remove_handle(multi_handle, easy_handle);
-//             curl_easy_cleanup(easy_handle);
-//             curl_multi_cleanup(multi_handle);
-//         }
-//     }).detach(); // Detach the thread to run independently
-// }
+            curl_multi_remove_handle(multi_handle, easy_handle);
+            curl_easy_cleanup(easy_handle);
+            curl_multi_cleanup(multi_handle);
+        }
+    }).detach(); // Detach the thread to run independently
+}
 
 
 // void send_patch_if_needed() {
@@ -358,10 +357,9 @@ void EncodeDecode::onLoad(RenderContext* pRenderContext)
     makeEncoderInputBuffers(6);
     makeEncoderOutputBuffers(1); // 6
 
-    uint8_t* data = (uint8_t*)malloc(640 * 360 * 4);
-    memset(data, 255, 640 * 360 * 4);
-
-    pRenderContext->updateTextureData(mPEncoderInputTexture360.get(), data);
+    // uint8_t* data = (uint8_t*)malloc(640 * 360 * 4);
+    // memset(data, 255, 640 * 360 * 4);
+    // pRenderContext->updateTextureData(mPEncoderInputTexture360.get(), data);
 }
 
 /*resize window changes the size of presenter of the decoded frame*/
@@ -1852,22 +1850,22 @@ void EncodeDecode::renderRT(RenderContext* pRenderContext, const ref<Fbo>& pTarg
 
 int runMain(int argc, char** argv)
 {
-    // unsigned int bitrate = std::stoi(argv[1]);
-    // unsigned int framerate = std::stoi(argv[2]);
-    // unsigned int width = std::stoi(argv[3]);
-    // unsigned int height = std::stoi(argv[4]);
-    // std::string scene = argv[5];
-    // unsigned int speedInput = std::stoi(argv[6]);
-    // std::string scenePath = argv[7];
+    unsigned int bitrate = std::stoi(argv[1]);
+    unsigned int framerate = std::stoi(argv[2]);
+    unsigned int width = std::stoi(argv[3]);
+    unsigned int height = std::stoi(argv[4]);
+    std::string scene = argv[5];
+    unsigned int speedInput = std::stoi(argv[6]);
+    std::string scenePath = argv[7];
 
-    unsigned int width = 1920; // 1920 1280 640
-    unsigned int height = 1080; // 1080 720 360
-    unsigned int bitrate = 5000;
-    unsigned int framerate = 60;
-    std::string scene = "lost_empire";
+    // unsigned int width = 1920; // 1920 1280 640
+    // unsigned int height = 1080; // 1080 720 360
+    // unsigned int bitrate = 5000;
+    // unsigned int framerate = 60;
+    // std::string scene = "lost_empire";
+    // unsigned int speedInput = 1;
+    // std::string scenePath = "lost_empire/path1_seg1.fbx"; // no texture, objects are black
 
-    unsigned int speedInput = 1;
-    std::string scenePath = "lost_empire/path1_seg1.fbx"; // no texture, objects are black
 
     std::cout << "\n\nframerate runmain  " << framerate << "\n";
     std::cout << "bitrate runmain  " << bitrate << "\n";
