@@ -4,7 +4,7 @@
 
 #include <filesystem>
 #include <iostream>
-#include <curl/curl.h>
+// #include <curl/curl.h>
 #include <d3d12.h>
 #include <d3d11.h>
 #include <dxgi1_4.h>
@@ -183,72 +183,77 @@ std::string base64_encode_patch(const std::vector<uint8_t>& patchData) {
     return cppcodec::base64_rfc4648::encode(patchData);
 }
 
-// Function to asynchronously send patch and velocity to the HTTP server
-// const std::vector<std::vector<float>>& patch
-void send_http_request_async(const std::vector<uint8_t>& patchData, float velocity) {
-    std::thread([patchData, velocity]() {
-        auto start = std::chrono::high_resolution_clock::now();
+// // Function to asynchronously send patch and velocity to the HTTP server
+// // const std::vector<std::vector<float>>& patch
+// void send_http_request_async(const std::vector<uint8_t>& patchData, float velocity) {
+//     std::thread([patchData, velocity]() {
+//         auto start = std::chrono::high_resolution_clock::now();
 
-        CURLM* multi_handle;
-        CURL* easy_handle;
-        // When still_running becomes 0, it means all HTTP requests have completed, and you can proceed with any post-processing steps or cleanup.
-        int still_running = 0; // Number of active transfers
+//         CURLM* multi_handle;
+//         CURL* easy_handle;
+//         // When still_running becomes 0, it means all HTTP requests have completed, and you can proceed with any post-processing steps or cleanup.
+//         int still_running = 0; // Number of active transfers
 
-        // Create a JSON object with patch and velocity
-        nlohmann::json j;
-        // Base64 encode the patch data and add to the JSON
-        std::string encodedPatch = base64_encode_patch(patchData);
-        j["patch"] = encodedPatch;
-        j["velocity"] = velocity;
+//         // Create a JSON object with patch and velocity
+//         nlohmann::json j;
+//         // Base64 encode the patch data and add to the JSON
+//         std::string encodedPatch = base64_encode_patch(patchData);
+//         j["patch"] = encodedPatch;
+//         j["velocity"] = velocity;
 
-        // Convert JSON to string
-        std::string json_str = j.dump();
-        // Initialize curl easy and multi handles
-        easy_handle = curl_easy_init();
-        multi_handle = curl_multi_init();
+//         // Convert JSON to string
+//         std::string json_str = j.dump();
+//         // Initialize curl easy and multi handles
+//         easy_handle = curl_easy_init();
+//         multi_handle = curl_multi_init();
 
-        if (easy_handle && multi_handle) {
-            // Set URL and POST data
-            curl_easy_setopt(easy_handle, CURLOPT_URL, "http://localhost:8000/predict");
-            curl_easy_setopt(easy_handle, CURLOPT_POSTFIELDS, json_str.c_str());
+//         if (easy_handle && multi_handle) {
+//             // Set URL and POST data
+//             std::string postFields = "shared_memory_key=PatchData";
+//             curl_easy_setopt(easy_handle, CURLOPT_URL, "http://localhost:8000/predict");
+//             // curl_easy_setopt(easy_handle, CURLOPT_POSTFIELDS, json_str.c_str());
+//             curl_easy_setopt(easy_handle, CURLOPT_POSTFIELDS, postFields.c_str());
 
-            // Set HTTP headers
-            struct curl_slist* headers = NULL;
-            headers = curl_slist_append(headers, "Content-Type: application/json");
-            curl_easy_setopt(easy_handle, CURLOPT_HTTPHEADER, headers);
-            // Add easy handle to multi handle
-            curl_multi_add_handle(multi_handle, easy_handle);
+//             // Set HTTP headers
+//             struct curl_slist* headers = NULL;
+//             headers = curl_slist_append(headers, "Content-Type: application/json");
+//             curl_easy_setopt(easy_handle, CURLOPT_HTTPHEADER, headers);
+//             curl_multi_add_handle(multi_handle, easy_handle); // Add easy handle to multi handle
 
-            auto now = std::chrono::system_clock::now();
-            std::time_t currentTime = std::chrono::system_clock::to_time_t(now); // getting calendar time
-            std::tm* localTime = std::localtime(&currentTime);
-            std::cout << "Current local time: " << std::put_time(localTime, "%Y-%m-%d %H:%M:%S") << std::endl;
-            auto stop1 = std::chrono::high_resolution_clock::now();
-            std::chrono::duration<double> elapsed_seconds_stop0 = stop1 - start;
-            std::cout << "Before send patch takes: " << elapsed_seconds_stop0.count() << " seconds\n";
+//             auto now = std::chrono::system_clock::now();
+//             std::time_t currentTime = std::chrono::system_clock::to_time_t(now); // getting calendar time
+//             std::tm* localTime = std::localtime(&currentTime);
+//             std::cout << "Current local time: " << std::put_time(localTime, "%Y-%m-%d %H:%M:%S") << std::endl;
+//             auto stop1 = std::chrono::high_resolution_clock::now();
+//             std::chrono::duration<double> elapsed_seconds_stop0 = stop1 - start;
+//             std::cout << "Before send patch takes: " << elapsed_seconds_stop0.count() << " seconds\n";
 
-            // Perform the request asynchronously
-            curl_multi_perform(multi_handle, &still_running);
+//             CURLMcode mc = curl_multi_perform(multi_handle, &still_running); // Perform the request asynchronously
+//             if (mc != CURLM_OK) {
+//                 std::cerr << "curl_multi_perform() failed: " << curl_multi_strerror(mc) << std::endl;
+//                 // break;
+//             }
 
-            // Polling loop to check the status of the request
-            while (still_running) {
-                int numfds;
-                curl_multi_wait(multi_handle, NULL, 0, 1000, &numfds);  // Wait for data/events
-                curl_multi_perform(multi_handle, &still_running);       // Perform any outstanding transfers
-            }
 
-            auto end = std::chrono::high_resolution_clock::now();
-            std::chrono::duration<double> elapsed_seconds_stop1 = end - stop1;
-            std::chrono::duration<double> elapsed_seconds = end - start;
-            std::cout << "Request round trip: " << elapsed_seconds_stop1.count() << " seconds\n";
-            std::cout << "Request completed in: " << elapsed_seconds.count() << " seconds\n";
+//             // Polling loop to check the status of the request
+//             while (still_running) {
+//                 int numfds;
+//                 curl_multi_wait(multi_handle, NULL, 0, 1000, &numfds);  // Wait for data/events
+//                 curl_multi_perform(multi_handle, &still_running);       // Perform any outstanding transfers
+//             }
 
-            curl_multi_remove_handle(multi_handle, easy_handle);
-            curl_easy_cleanup(easy_handle);
-            curl_multi_cleanup(multi_handle);
-        }
-    }).detach(); // Detach the thread to run independently
-}
+//             auto end = std::chrono::high_resolution_clock::now();
+//             std::chrono::duration<double> elapsed_seconds_stop1 = end - stop1;
+//             std::chrono::duration<double> elapsed_seconds = end - start;
+//             std::cout << "Request round trip: " << elapsed_seconds_stop1.count() << " seconds\n";
+//             std::cout << "Request completed in: " << elapsed_seconds.count() << " seconds\n";
+
+//             curl_multi_remove_handle(multi_handle, easy_handle);
+//             curl_easy_cleanup(easy_handle);
+//             curl_multi_cleanup(multi_handle);
+//         }
+//     }).detach(); // Detach the thread to run independently
+// }
 
 
 // void send_patch_if_needed() {
@@ -277,7 +282,7 @@ static const Falcor::float4 kClearColor(0.f, 0.f, 0.0f, 1);
 // constructor
 EncodeDecode::EncodeDecode(const SampleAppConfig& config) : SampleApp(config)
 {
-    /*1422x800 dec not working, new pairs: 1536, 1200; 864, 676*/
+        /*1422x800 dec not working, new pairs: 1536, 1200; 864, 676*/
         mConfig = config;
         mWidth = config.windowDesc.width;   // 1920, 4096, 1280, 854, 640, 960, 1024, 1280, 1440, 1423
         mHeight = config.windowDesc.height; // 1080, 2160, 720, 480, 360, 540, 600, 800, 900, 800
@@ -287,7 +292,6 @@ EncodeDecode::EncodeDecode(const SampleAppConfig& config) : SampleApp(config)
         std::cout << "mHeight: " << mHeight << std::endl;
         std::cout << '\n';
 
-        // const ref<Device>& device = getDevice(); // get from falcor, mpDevice = device.get();
         mpDevice = getDevice();
         mpD3D12Device = mpDevice->getNativeHandle().as<ID3D12Device*>();
 
@@ -304,10 +308,6 @@ EncodeDecode::EncodeDecode(const SampleAppConfig& config) : SampleApp(config)
 
         // cast into directx 12 using: ->getNativeHandle().as<ID3D12Resource*>();
         // falcor's device, createtexture3d
-        mPDecoderOutputTexture360 = getDevice()->createTexture2D(640, 360, ResourceFormat::BGRA8Unorm, 1, 1, nullptr, ResourceBindFlags::UnorderedAccess | ResourceBindFlags::ShaderResource | ResourceBindFlags::RenderTarget);
-        mPDecoderOutputTexture480 = getDevice()->createTexture2D(854, 480, ResourceFormat::BGRA8Unorm, 1, 1, nullptr, ResourceBindFlags::UnorderedAccess | ResourceBindFlags::ShaderResource | ResourceBindFlags::RenderTarget);
-        mPDecoderOutputTexture720 = getDevice()->createTexture2D(1280, 720, ResourceFormat::BGRA8Unorm, 1, 1, nullptr, ResourceBindFlags::UnorderedAccess | ResourceBindFlags::ShaderResource | ResourceBindFlags::RenderTarget);
-        mPDecoderOutputTexture864 = getDevice()->createTexture2D(1536, 864, ResourceFormat::BGRA8Unorm, 1, 1, nullptr, ResourceBindFlags::UnorderedAccess | ResourceBindFlags::ShaderResource | ResourceBindFlags::RenderTarget);
         mPDecoderOutputTexture1080 = getDevice()->createTexture2D(1920, 1080, ResourceFormat::BGRA8Unorm, 1, 1, nullptr, ResourceBindFlags::UnorderedAccess | ResourceBindFlags::ShaderResource | ResourceBindFlags::RenderTarget);
 
         mPEncoderInputTexture360 = getDevice()->createTexture2D(640, 360, ResourceFormat::BGRA8Unorm, 1, 1, nullptr, ResourceBindFlags::UnorderedAccess | ResourceBindFlags::ShaderResource | ResourceBindFlags::RenderTarget);
@@ -315,6 +315,16 @@ EncodeDecode::EncodeDecode(const SampleAppConfig& config) : SampleApp(config)
         mPEncoderInputTexture720 = getDevice()->createTexture2D(1280, 720, ResourceFormat::BGRA8Unorm, 1, 1, nullptr, ResourceBindFlags::UnorderedAccess | ResourceBindFlags::ShaderResource | ResourceBindFlags::RenderTarget);
         mPEncoderInputTexture864 = getDevice()->createTexture2D(1536, 864, ResourceFormat::BGRA8Unorm, 1, 1, nullptr, ResourceBindFlags::UnorderedAccess | ResourceBindFlags::ShaderResource | ResourceBindFlags::RenderTarget);
         mPEncoderInputTexture1080 = getDevice()->createTexture2D(1920, 1080, ResourceFormat::BGRA8Unorm, 1, 1, nullptr, ResourceBindFlags::UnorderedAccess | ResourceBindFlags::ShaderResource | ResourceBindFlags::RenderTarget);
+
+        // motion vector mipmap
+        mipLevels = 1; // 7: 64x64 patches, 11: 1x1 patch, 1: 1920x1080 patch
+        std::cout << "constructor mipLevels: " << mipLevels << "\n";
+        mpRtMip = getDevice()->createTexture2D(
+            mWidth, mHeight, ResourceFormat::RG32Float, 1, mipLevels, nullptr,
+            ResourceBindFlags::UnorderedAccess | ResourceBindFlags::ShaderResource | ResourceBindFlags::RenderTarget
+    );
+
+
 }
 
 EncodeDecode::~EncodeDecode() {}
@@ -330,6 +340,7 @@ void EncodeDecode::onLoad(RenderContext* pRenderContext)
     }
     mpRenderContextDecode = pRenderContext;
 
+    //initDirectML();
     initEncoder();
     initDecoder();
     std::cout << "load scene: " << std::endl;
@@ -338,28 +349,32 @@ void EncodeDecode::onLoad(RenderContext* pRenderContext)
 
     Properties gBufferProps = {};
     Properties fXAAProps = {};
+    Properties computeVelocityProps = {};
 
     // RenderGraph有DirectedGraph, DirectedGraph 存储了 PassId 和 EdgeId 的关系，
     // 而 RenderGraph 则存储了两个 Id 所指向的资源。而这些关系的产生都在 addPass 和 addEdge 中完成
     mpRenderGraph = RenderGraph::create(mpDevice, "EncodeDecode");
     mpRenderGraph->createPass("GBuffer", "GBufferRaster", gBufferProps);
     mpRenderGraph->createPass("TAA", "TAA", fXAAProps);
+    // mpRenderGraph->createPass("ComputeVelocity", "ComputeVelocity", computeVelocityProps);
 
     mpRenderGraph->onResize(getTargetFbo().get());
     mpRenderGraph->setScene(mpScene);
     mpRenderGraph->addEdge("GBuffer.mvec", "TAA.motionVecs"); // source texture, output texture
-    ////mpRenderGraph->markOutput("GBuffer.mvec"); // Mark a render pass output as the graph's output.
+    // mpRenderGraph->addEdge("GBuffer.mvec", "ComputeVelocity.motionVecs"); // source texture, output texture
     mpRenderGraph->markOutput("TAA.colorOut");
+    mpRenderGraph->markOutput("GBuffer.mvec"); // Additional motion vector info
     mpRenderGraph->setInput("TAA.colorIn", mpRtOut);
+    mpComputeVelocityPass = ComputePass::create(mpDevice, "C:/Users/15142/new/Falcor/Source/Samples/EncodeDecode/ComputeVelocity.cs.slang", "computeVelocity", DefineList());
+
     mpRenderGraph->compile(pRenderContext, log);
+
+    // Make output buffer to store ptch motion average
+    mpVelocity = mpDevice->createBuffer(4 * sizeof(float), ResourceBindFlags::UnorderedAccess, MemoryType::DeviceLocal);
 
     // allocate memory so encoder can work with what we need
     makeEncoderInputBuffers(6);
-    makeEncoderOutputBuffers(1); // 6
-
-    // uint8_t* data = (uint8_t*)malloc(640 * 360 * 4);
-    // memset(data, 255, 640 * 360 * 4);
-    // pRenderContext->updateTextureData(mPEncoderInputTexture360.get(), data);
+    makeEncoderOutputBuffers(1);
 }
 
 /*resize window changes the size of presenter of the decoded frame*/
@@ -383,14 +398,11 @@ void EncodeDecode::onResize(uint32_t width, uint32_t height)
 
 // Function to extract a 128x128 patch from the rendered frame
 // frame is likely on gpu. pRenderContext: The rendering context. Use it to bind state and dispatch calls to the GPU
-void EncodeDecode::extract_patch_from_frame(std::vector<uint8_t>& renderedFrameVal, uint32_t frameWidth, uint32_t frameHeight, uint32_t patchWidth, uint32_t patchHeight, std::vector<uint8_t>& patchData)
+void EncodeDecode::extract_patch_from_frame(std::vector<uint8_t>& renderedFrameVal, uint32_t frameWidth, uint32_t frameHeight, \
+                                uint32_t patchWidth, uint32_t patchHeight, uint32_t startX, uint32_t startY, std::vector<uint8_t>& patchData)
 {
-    // std::cerr << "frameWidth " << frameWidth << std::endl;
-    // std::cerr << "frameHeight " << frameHeight << std::endl;
-    // std::cerr << "patchWidth " << patchWidth << std::endl;
-    // std::cerr << "patchHeight " << patchHeight << std::endl;
     uint32_t numChannels = 4;  // For BGRA8 format (8 bits per channel, 4 channels)
-    auto [startX, startY] = getRandomStartCoordinates(frameWidth, frameHeight, patchWidth, patchHeight);
+    // auto [startX, startY] = getRandomStartCoordinates(frameWidth, frameHeight, patchWidth, patchHeight);
     // uint32_t startX = 0;
     // uint32_t startY = 0;
     std::cout << "Random startX: " << startX << ", startY: " << startY << std::endl;
@@ -434,47 +446,33 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
         static uint32_t fcount = 0;
         static int fCount_rt = 0;
 
+        mpRenderGraph->execute(mpRenderContextDecode); // mpRenderContextDecode pRenderContext
+        // motionVectorResource = mpRenderGraph->getOutput("GBuffer.mvec");
+        // motionVectorTexture = static_ref_cast<Texture>(motionVectorResource);
+
         InterlockedIncrement(&mNDecodeFenceVal);
         if (mRayTrace)
             renderRT(mpRenderContextDecode, pTargetFbo, fcount, mWidth, mHeight); // mpRenderContextDecode pRenderContext
         else
             renderRaster(pRenderContext, pTargetFbo);
 
-        mpRenderGraph->execute(mpRenderContextDecode); // mpRenderContextDecode pRenderContext
+
 
         // blit from one frame buffer (or texture) to another
         // displaying the final rendered image to the screen, framebuffer represents the final render target, usually the screen or a backbuffer
         // pRenderContext->blit(mpRenderGraph->getOutput("TAA.colorOut")->getSRV(), pTargetFbo->getRenderTargetView(0));
 
-        // // send_patch_if_needed();
-        // if (fcount == 100) {
-        //     ref<Texture> frameTexture = mpRenderGraph->getOutput("TAA.colorOut")->asTexture();
-        //     uint32_t frameWidth = frameTexture->getWidth();
-        //     uint32_t frameHeight = frameTexture->getHeight();
-        //     // auto format = frameTexture->getFormat(); // BGRA8Unorm (47)
-        //     uint32_t patchWidth = 128;
-        //     uint32_t patchHeight = 128;
-
-        //     std::vector<uint8_t> renderedFrameVal = pRenderContext->readTextureSubresource(frameTexture.get(), 0);
-        //     std::vector<uint8_t> patchData(patchWidth * patchHeight * 3);
-        //     extract_patch_from_frame(renderedFrameVal, frameWidth, frameHeight, patchWidth, patchHeight, patchData);
-        //     stbi_write_png("patch_output_rgba.png", patchWidth, patchHeight, 3, patchData.data(), patchWidth * 3);
-
-        //     send_http_request_async(patchData, 0.75);
-        //     // send_http_request_async(0.75);
-        // }
         // Sleep(100);
         // std::cout << "sleep here \n";
 
         cpuWaitForFencePoint(mpDecodeFence->getNativeHandle().as<ID3D12Fence*>(), mNDecodeFenceVal);
         // pRenderContext->blit(mpRenderGraph->getOutput("TAA.colorOut")->getSRV(), pTargetFbo->getRenderTargetView(0));
-
         // blit mprtout into smaller texture, want to encode smaller texture
-        pRenderContext->blit(mpRenderGraph->getOutput("TAA.colorOut")->getSRV(), mPEncoderInputTexture360->getRTV(0)); // mPDecoderOutputTexture1080
-        pRenderContext->blit(mpRenderGraph->getOutput("TAA.colorOut")->getSRV(), mPEncoderInputTexture480->getRTV(0)); // mPDecoderOutputTexture1080
-        pRenderContext->blit(mpRenderGraph->getOutput("TAA.colorOut")->getSRV(), mPEncoderInputTexture720->getRTV(0)); // mPDecoderOutputTexture1080
-        pRenderContext->blit(mpRenderGraph->getOutput("TAA.colorOut")->getSRV(), mPEncoderInputTexture864->getRTV(0)); // mPDecoderOutputTexture1080
-        pRenderContext->blit(mpRenderGraph->getOutput("TAA.colorOut")->getSRV(), mPEncoderInputTexture1080->getRTV(0)); // mPDecoderOutputTexture1080
+        pRenderContext->blit(mpRenderGraph->getOutput("TAA.colorOut")->getSRV(), mPEncoderInputTexture360->getRTV(0));
+        pRenderContext->blit(mpRenderGraph->getOutput("TAA.colorOut")->getSRV(), mPEncoderInputTexture480->getRTV(0));
+        pRenderContext->blit(mpRenderGraph->getOutput("TAA.colorOut")->getSRV(), mPEncoderInputTexture720->getRTV(0));
+        pRenderContext->blit(mpRenderGraph->getOutput("TAA.colorOut")->getSRV(), mPEncoderInputTexture864->getRTV(0));
+        pRenderContext->blit(mpRenderGraph->getOutput("TAA.colorOut")->getSRV(), mPEncoderInputTexture1080->getRTV(0));
 
         if (outputReferenceFrames && (fCount_rt > 0))
         {
@@ -488,43 +486,16 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
         decodeFrameBuffer(); // mDecodedFrame updated, then call handlePictureDecode
         getTextRenderer().render(pRenderContext, getFrameRate().getMsg(), pTargetFbo, {20, 20}); // print fps on the screen
 
-
         // std::cout << "frameCounter " << frameCounter << "\n";
         // std::cout << "fcount " << fcount << "\n";
         // frameCounter++;
 
-        if (fCount_rt >= 2)  // 2
+        if (fCount_rt >= 2)
         {
             std::cout << "\nfCount_rt: " << fCount_rt << "\n";
-            // mWDecodeLock = 0;
-
-
             if (mDecodeLock != 0)
             {
-
                 pRenderContext->blit(mPDecoderOutputTexture1080->getSRV(), pTargetFbo->getRenderTargetView(0));
-
-                // if (mHeight == 360)
-                // {
-                //     // pRenderContext->updateTextureData(mPDecoderOutputTexture360.get(), mDecodedFrame);
-                //     //  the decoded texture (retrieved via getSRV()) is copied or rendered to the render target view (retrieved via getRenderTargetView(0) of the framebuffer).
-                //     // This is likely part of a process to display the texture onto the screen or an offscreen buffer
-                //     std::cout << "onframerenderer mheight = 360" << "\n";
-                //     pRenderContext->blit(mPDecoderOutputTexture360->getSRV(), pTargetFbo->getRenderTargetView(0)); // mPDecoderOutputTexture1080
-                // } else if (mHeight == 480)
-                // {
-                //     pRenderContext->blit(mPDecoderOutputTexture480->getSRV(), pTargetFbo->getRenderTargetView(0));
-                // } else if (mHeight == 720)
-                // {
-                //     std::cout << "onframerenderer mheight = 720" << "\n";
-                //     pRenderContext->blit(mPDecoderOutputTexture720->getSRV(), pTargetFbo->getRenderTargetView(0));
-                // } else if (mHeight == 864)
-                // {
-                //     pRenderContext->blit(mPDecoderOutputTexture864->getSRV(), pTargetFbo->getRenderTargetView(0));
-                // } else
-                // {
-                //     std::cout << "onframerenderer mheight = 1080" << "\n";
-                // }
             }
 
             double endTime = 0.0;
@@ -556,6 +527,74 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
 
                 setResolution(1920, 1080);
                 mResolutionChange = 0;
+            }
+
+            // Method1 get motion vector, inefficient
+            // // mpRtMip was created in rendert()
+            // std::vector<uint8_t> val = pRenderContext->readTextureSubresource(mpRtMip.get(), mipLevels-1);
+            // float* t = (float*)val.data();
+            // std::size_t length = val.size() / sizeof(float); // val.size() is total bytes, sizeof(float) is 4 bytes.
+            // float t1 = t[0];
+            // float t2 = t[1];
+            // std::cout << "t1 " << t1 << "\n"; // Print as integer
+
+            // Method2 compute velocity
+            // auto [startX, startY] = getRandomStartCoordinates(mWidth, mHeight, 128, 128);
+            auto startX = 2;
+            auto startY = 5;
+            auto rootVar = mpComputeVelocityPass->getRootVar();
+            rootVar["gInputImage"] = mpRenderGraph->getOutput("GBuffer.mvec")->asTexture();
+            rootVar["gOutputVelocity"] = mpVelocity;
+            auto globalVar = rootVar["PerFrameCB"];
+            globalVar["gPatchOffset"] = Falcor::uint2(startX, startY); // top left coordinate of patch
+            mpComputeVelocityPass->execute(pRenderContext, Falcor::uint3(1u, 1u, 1u));
+
+            pRenderContext->submit();
+            std::cout << "mpVelocity: " << mpVelocity->getElements<float>(0, 1).at(0) << "\n"; // starting index, the number of elements
+
+
+            if (fcount == 100 && false)
+            {
+                ref<Texture> frameTexture = mpRenderGraph->getOutput("GBuffer.mvec")->asTexture();
+                uint32_t frameWidth = frameTexture->getWidth();
+                uint32_t frameHeight = frameTexture->getHeight();
+                // auto format = frameTexture->getFormat(); // BGRA8Unorm (47)
+                const int memorySize = patchWidth * patchHeight * 3;
+                // TODO: randomly select the patch
+                double s = getCurrentTime();
+
+                std::vector<uint8_t> patchData = pRenderContext->readTexturePatch(frameTexture.get(), startX, startY, patchWidth, patchHeight);
+
+                double e = getCurrentTime();
+                std::cout << "Read time: " << (e - s) << " seconds\n";
+
+                // create shared memory
+                HANDLE hMapFile = CreateFileMapping(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, memorySize, TEXT("PatchData"));
+                if (hMapFile == NULL) {
+                    std::cerr << "Could not create file mapping object. Error: " << GetLastError() << std::endl;
+                }
+                // Map a view of the file into the address space of the current process
+                LPVOID pBuf = MapViewOfFile(
+                    hMapFile,            // Handle to the map object
+                    FILE_MAP_ALL_ACCESS, // Read/write access
+                    0,                   // High-order DWORD of file offset
+                    0,                   // Low-order DWORD of file offset
+                    memorySize           // Number of bytes to map
+                );
+                if (pBuf == NULL) {
+                    std::cerr << "Could not map view of file. Error: " << GetLastError() << std::endl;
+                    CloseHandle(hMapFile);
+                }
+                memcpy(pBuf, patchData.data(), memorySize);
+                std::cerr << "Copied patch to shared memory " << std::endl;
+
+                // send_http_request_async(patchData, 0.75);
+                // send_http_request_async(0.75);
+
+                // Clean up
+                UnmapViewOfFile(pBuf);
+                CloseHandle(hMapFile);
+
             }
 
             // if (frameLimit > 0 && fcount >= frameLimit)
@@ -595,6 +634,12 @@ void EncodeDecode::onGuiRender(Gui* pGui)
 
 bool EncodeDecode::onKeyEvent(const KeyboardEvent& keyEvent)
 {
+
+    if (keyEvent.type != KeyboardEvent::Type::KeyPressed)
+    {
+        return 0;
+    }
+
     if (keyEvent.key == Falcor::Input::Key::Up) {
 
         mResolutionChange = 1;
@@ -604,6 +649,14 @@ bool EncodeDecode::onKeyEvent(const KeyboardEvent& keyEvent)
 
         mResolutionChange = -1;
 
+        return true;
+    } else if (keyEvent.key == Falcor::Input::Key::Left && frameRate >= 25) {
+
+        setFrameRate(frameRate - 5);
+        return true;
+    } else if (keyEvent.key == Falcor::Input::Key::Right && frameRate <= 115) {
+
+        setFrameRate(frameRate + 5);
         return true;
     }
 
@@ -1601,16 +1654,58 @@ int EncodeDecode::getDecoderFrameSize()
 }
 
 
-void EncodeDecode::initDirectML()
-{
-    // // mpD3D12Device
-    // DML_CREATE_DEVICE_FLAGS dmlCreateDeviceFlags = DML_CREATE_DEVICE_FLAG_NONE;
-	// // DMLCreateDevice(mpD3D12Device, dmlCreateDeviceFlags, 0, &mpDmlDevice);
-    // DMLCreateDevice(
-    //     mpD3D12Device,
-    //     dmlCreateDeviceFlags,
-    //     IID_PPV_ARGS(mpDmlDevice->GetAddressOf()));
-}
+// void EncodeDecode::initDirectML()
+// {
+//     // // mpD3D12Device
+//     // DML_CREATE_DEVICE_FLAGS dmlCreateDeviceFlags = DML_CREATE_DEVICE_FLAG_NONE;
+// 	// // DMLCreateDevice(mpD3D12Device, dmlCreateDeviceFlags, 0, &mpDmlDevice);
+//     // DMLCreateDevice(
+//     //     mpD3D12Device,
+//     //     dmlCreateDeviceFlags,
+//     //     IID_PPV_ARGS(mpDmlDevice->GetAddressOf()));
+//     sessionOptions = new Ort::SessionOptions();
+//     sessionOptions->DisableMemPattern();
+//     sessionOptions->SetExecutionMode(ExecutionMode::ORT_SEQUENTIAL);
+
+//     // By passing in an explicitly created DML device & queue, the DML execution provider sends work
+//     // to the desired device. If not used, the DML execution provider will create its own device & queue.
+//     const OrtApi& ortApi = Ort::GetApi();
+//     const OrtDmlApi* ortDmlApi = nullptr;
+//     // obtains a pointer to the DML API
+//     // ortDmlApi now points to the DML-specific API functions provided by ONNX Runtime
+//     Ort::ThrowOnError(ortApi.GetExecutionProviderApi("DML", ORT_API_VERSION, reinterpret_cast<const void**>(&ortDmlApi)));
+//     // Appending the DML Execution Provider
+//     // attaches the DML execution provider to the sessionOptions
+//     // dmlDevice and d3dQueue should be created beforehand, typically through DirectML and Direct3D 12 APIs
+//     Ort::ThrowOnError(ortDmlApi->SessionOptionsAppendExecutionProvider_DML1(
+//         *sessionOptions,
+//         mpDmlDevice,
+//         mpD3dQueue
+//     ));
+
+//     std::filesystem::path modelPath = "smaller_vrr_fp32.onnx";
+//     // Load ONNX model into a session.
+//     Ort::Env env(OrtLoggingLevel::ORT_LOGGING_LEVEL_WARNING, "DirectML_CV");
+//     Ort::Session ortSession(env, modelPath.wstring().c_str(), *sessionOptions);
+
+//     Ort::AllocatorWithDefaultOptions ortAllocator;
+//     // TODO: we have multiple input
+//     auto inputName = ortSession.GetInputNameAllocated(0, ortAllocator);
+//     auto inputTypeInfo = ortSession.GetInputTypeInfo(0);
+//     auto inputTensorInfo = inputTypeInfo.GetTensorTypeAndShapeInfo();
+//     auto inputShape = inputTensorInfo.GetShape();
+//     auto inputDataType = inputTensorInfo.GetElementType();
+//     if (inputDataType != ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT && inputDataType != ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT16)
+//     {
+//         throw std::invalid_argument("Model input must be of type float32 or float16");
+//     }
+//     // if (inputShape.size() < 3)
+//     // {
+//     //     throw std::invalid_argument("Model input must be an image with 3 or 4 dimensions");
+//     // }
+
+
+// }
 
 
 void EncodeDecode::loadScene(const std::filesystem::path& path, const Fbo* pTargetFbo)
@@ -1845,27 +1940,30 @@ void EncodeDecode::renderRT(RenderContext* pRenderContext, const ref<Fbo>& pTarg
     // mpRtOut and pTargetFbo have the same size, i.e. width height of reference frames
     pRenderContext->signal(mpDecodeFence.get(), mNDecodeFenceVal);
     // pRenderContext->blit(mpRtOut->getSRV(), pTargetFbo->getRenderTargetView(0));
+
+    // pRenderContext->blit(motionVectorTexture->getSRV(), mpRtMip->getRTV());
+    // createMipMaps(pRenderContext);
 }
 
 
 int runMain(int argc, char** argv)
 {
-    unsigned int bitrate = std::stoi(argv[1]);
-    unsigned int framerate = std::stoi(argv[2]);
-    unsigned int width = std::stoi(argv[3]);
-    unsigned int height = std::stoi(argv[4]);
-    std::string scene = argv[5];
-    unsigned int speedInput = std::stoi(argv[6]);
-    std::string scenePath = argv[7];
+    // unsigned int bitrate = std::stoi(argv[1]);
+    // unsigned int framerate = std::stoi(argv[2]);
+    // unsigned int width = std::stoi(argv[3]);
+    // unsigned int height = std::stoi(argv[4]);
+    // std::string scene = argv[5];
+    // unsigned int speedInput = std::stoi(argv[6]);
+    // std::string scenePath = argv[7];
 
-    // unsigned int width = 1920; // 1920 1280 640
-    // unsigned int height = 1080; // 1080 720 360
-    // unsigned int bitrate = 5000;
-    // unsigned int framerate = 60;
-    // std::string scene = "lost_empire";
-    // unsigned int speedInput = 1;
-    // std::string scenePath = "lost_empire/path1_seg1.fbx"; // no texture, objects are black
+    unsigned int width = 1920; // 1920 1280 640
+    unsigned int height = 1080; // 1080 720 360
+    unsigned int bitrate = 5000;
+    unsigned int framerate = 60;
+    std::string scene = "lost_empire";
 
+    unsigned int speedInput = 1;
+    std::string scenePath = "lost_empire/path1_seg1.fbx"; // no texture, objects are black
 
     std::cout << "\n\nframerate runmain  " << framerate << "\n";
     std::cout << "bitrate runmain  " << bitrate << "\n";
@@ -1897,42 +1995,8 @@ int runMain(int argc, char** argv)
     return encodeDecode.run();
 }
 
-void foo(EncodeDecode* encodeDecode)
-{
-
-    // std::this_thread::sleep_for(std::chrono::duration<float>(100));
-    while (true)
-    {
-        /* code */
-        double startTime = 0.0;
-        startTime = getCurrentTime(); // Capture the start time
-        // std::cout << "Timer started.\n";
-
-        // do the stuff... (decode and display)
-        // encodeDecode->encodeFrameBuffer();
-        encodeDecode->decodeFrameBuffer();
-
-        double endTime = 0.0;
-        endTime = getCurrentTime();
-
-        float elapsedTime = endTime - startTime; // Time since last frame
-        std::cout << "elapsedTime: " << elapsedTime << "\n";
-
-        if (elapsedTime < encodeDecode->targetFrameTime)
-        {
-            // Insert a delay to match the desired FPS
-            std::cout << "start sleepoing, targetFrameTime: " << encodeDecode->targetFrameTime << "\n";
-            float sleepTime = encodeDecode->targetFrameTime - elapsedTime;
-            // sleep(sleepTime); // Sleep for the remaining frame time
-            // std::this_thread::sleep_for(std::chrono::duration<float>(sleepTime));
-        }
-    }
-}
-
-
 int EncodeDecode::run()
 {
-    // std::thread decodeThread(foo, this);     // spawn new thread that calls foo()
     return SampleApp::run();
 }
 

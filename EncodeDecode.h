@@ -17,6 +17,9 @@
 #define DML_TARGET_VERSION_USE_LATEST
 #include <DirectML.h> // The DirectML header from the Windows SDK.
 // #include <DirectMLX.h>
+#define ORT_MANUAL_INIT
+// #include "onnxruntime_cxx_api.h"
+// #include "dml_provider_factory.h"
 
 //#include "FramePresenterD3D11.h"
 
@@ -43,7 +46,7 @@ public:
     int run() override;
     void onLoad(RenderContext* pRenderContext) override;
     void onResize(uint32_t width, uint32_t height) override;
-    void onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& pTargetFbo);
+    void onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& pTargetFbo) override;
     void onGuiRender(Gui* pGui) override;
     bool onKeyEvent(const KeyboardEvent& keyEvent) override;
     bool onMouseEvent(const MouseEvent& mouseEvent) override;
@@ -94,7 +97,8 @@ public:
         NV_ENC_FENCE_POINT_D3D12* pInputFencePoint = nullptr
     );
 
-    void extract_patch_from_frame(std::vector<uint8_t>& renderedFrameVal, uint32_t frameWidth, uint32_t frameHeight, uint32_t patchWidth, uint32_t patchHeight, std::vector<uint8_t>& patchData);
+    void extract_patch_from_frame(std::vector<uint8_t>& renderedFrameVal, uint32_t frameWidth, uint32_t frameHeight, uint32_t patchWidth, uint32_t patchHeight, \
+                                  uint32_t startX, uint32_t startY, std::vector<uint8_t>& patchData);
     // Gte the number of chroma planes based on the encoder pixel format.
     uint32_t getEncoderNumChromaPlanes(const NV_ENC_BUFFER_FORMAT bufferFormat);
     // Get encoder frame size, in bytes.
@@ -300,10 +304,6 @@ private:
     FramePresenterD3D11* presenterPtr = nullptr;
 
     // ID3D12Resource* mPDecoderOutputTexture360;
-    ref<Texture> mPDecoderOutputTexture360;
-    ref<Texture> mPDecoderOutputTexture480;
-    ref<Texture> mPDecoderOutputTexture720;
-    ref<Texture> mPDecoderOutputTexture864;
     ref<Texture> mPDecoderOutputTexture1080;
 
     // mprtout blit into these encoding texture
@@ -315,8 +315,11 @@ private:
 
     uint8_t mDecodeLock = 0;
 
-    Microsoft::WRL::ComPtr<IDMLDevice> mpDmlDevice;
-    // IDMLDevice* mpDmlDevice = nullptr;
+    // Microsoft::WRL::ComPtr<IDMLDevice> mpDmlDevice;
+    IDMLDevice* mpDmlDevice = nullptr;
+    ID3D12CommandQueue* mpD3dQueue;
+    // // DML execution provider prefers these session options.
+    // Ort::SessionOptions* sessionOptions;
 
 
 
@@ -337,6 +340,8 @@ public:
     uint32_t mOldWidth = 0;
     uint32_t mOldHeight = 0;
 
+    uint32_t patchWidth = 128;
+    uint32_t patchHeight = 128;
     int mResolutionChange = 0;
 
     ref<Scene> mpScene;
@@ -345,6 +350,10 @@ public:
 
     ref<RasterPass> mpRasterPass;
     ref<RenderGraph> mpRenderGraph;
+
+    /// Compute pass for computing the luminance of an image.
+    ref<ComputePass> mpComputeVelocityPass;
+    ref<Buffer> mpVelocity; /// Internal buffer for temporary velocity of the patch.
 
     ref<Program> mpRaytraceProgram;
     ref<RtProgramVars> mpRtVars;
