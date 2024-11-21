@@ -3,6 +3,8 @@
 
 #include <d3d12.h>
 #include <cuda.h>
+#include <combaseapi.h>
+#include <variant>
 
 #include "nvEncodeAPI.h"
 #include "nvcuvid.h"
@@ -13,19 +15,24 @@
 #include "Falcor.h"
 #include "Core/SampleApp.h"
 #include "Core/Pass/RasterPass.h"
+#include "d3dx12.h"
+
 
 #define DML_TARGET_VERSION_USE_LATEST
 #include <DirectML.h> // The DirectML header from the Windows SDK.
 // #include <DirectMLX.h>
-#define ORT_MANUAL_INIT
-// #include "onnxruntime_cxx_api.h"
-// #include "dml_provider_factory.h"
+// #define ORT_MANUAL_INIT
+#include "dml_provider_factory.h"
+#include "onnxruntime_cxx_api.h"
 
 //#include "FramePresenterD3D11.h"
 
 using namespace Falcor;
 
 #define ALIGN_UP(s, a) (((s) + (a)-1) & ~((a)-1))
+
+using Microsoft::WRL::ComPtr;
+
 
 struct NvEncInputFrame
 {
@@ -97,7 +104,7 @@ public:
         NV_ENC_FENCE_POINT_D3D12* pInputFencePoint = nullptr
     );
 
-    void extract_patch_from_frame(std::vector<uint8_t>& renderedFrameVal, uint32_t frameWidth, uint32_t frameHeight, uint32_t patchWidth, uint32_t patchHeight, \
+    void extract_patch_from_frame(std::vector<uint8_t>& renderedFrameVal, uint32_t frameWidth, uint32_t frameHeight, \
                                   uint32_t startX, uint32_t startY, std::vector<uint8_t>& patchData);
     // Gte the number of chroma planes based on the encoder pixel format.
     uint32_t getEncoderNumChromaPlanes(const NV_ENC_BUFFER_FORMAT bufferFormat);
@@ -153,16 +160,21 @@ public:
     int handleSequenceChange(CUVIDEOFORMAT* pFormat);
     int getDecoderFrameSize();
 
-
-    // directml
     void initDirectML();
+    void EncodeDecode::CreateCurrentBuffer();
+    void EncodeDecode::CopyTextureIntoCurrentBuffer();
+    void EncodeDecode::CreateFpsBuffer();
+    void EncodeDecode::CreateBitrateBuffer();
+    void EncodeDecode::CreateResolutionBuffer();
+    void EncodeDecode::CreateVelocityBuffer();
+    void EncodeDecode::CreateFloatBuffer(ComPtr<ID3D12Resource> scalarBuffer, D3D12_VERTEX_BUFFER_VIEW scalarBufferView, float scalarValue);
+    void EncodeDecode::UpdateScalarBuffer(ComPtr<ID3D12Resource> scalarBuffer, float newScalarValue);
+
+
 
     /*
-
-
     @Info
         All of the rendering functionality is specified here.
-
     */
 
     /*
@@ -318,12 +330,57 @@ private:
     // Microsoft::WRL::ComPtr<IDMLDevice> mpDmlDevice;
     IDMLDevice* mpDmlDevice = nullptr;
     ID3D12CommandQueue* mpD3dQueue;
-    // // DML execution provider prefers these session options.
-    // Ort::SessionOptions* sessionOptions;
+    // DML execution provider prefers these session options.
+public:
+    // ONNX runtime
+    Ort::SessionOptions* sessionOptions = nullptr;
+    Ort::Env* env;
+    Ort::Session* ortSession = nullptr;
+    const OrtDmlApi* ortDmlApi = nullptr;
+    ComPtr<ID3D12Resource> mpPatchBuffer;
+    ref<Texture> mpPatchTexture;
+    ComPtr<ID3D12GraphicsCommandList> mpCommandList;
+    ComPtr<ID3D12CommandAllocator> mpCommandAllocator;
+    ComPtr<ID3D12CommandQueue> mpCommandQueue;
+    ComPtr<ID3D12PipelineState> mpPipelineState;
+    ComPtr<ID3D12Resource> mpFpsBuffer;
+    D3D12_VERTEX_BUFFER_VIEW mpFpsBufferView;
+    ComPtr<ID3D12Resource> mpBitrateBuffer;
+    D3D12_VERTEX_BUFFER_VIEW mpBitrateBufferView;
+    ComPtr<ID3D12Resource> mpResBuffer;
+    D3D12_VERTEX_BUFFER_VIEW mpResBufferView;
+    ComPtr<ID3D12Resource> mpVelocityBuffer;
+    D3D12_VERTEX_BUFFER_VIEW mpVelocityBufferView;
+
+    Ort::AllocatorWithDefaultOptions ortAllocator;
+
+
+    Ort::Value EncodeDecode::CreateTensorValueFromD3DResource(
+        OrtDmlApi const& dmlApi,
+        Ort::MemoryInfo const& memoryInformation,
+        ID3D12Resource* d3dResource,
+        std::vector<int64_t> inputShape,
+        ONNXTensorElementDataType elementDataType,
+        /*out*/ void** dmlEpResourceWrapper // Must stay alive with Ort::Value.
+    );
+
+    // void ThrowIfFailed(HRESULT hr);
+
+    uint32_t inputChannels;
+    uint32_t inputHeight;
+    uint32_t inputWidth;
+    // uint32_t inputElementSize;
+    std::filesystem::path modelPath = "C:/Users/15142/new/Falcor/Source/Samples/EncodeDecode/smaller_vrr_fp32.onnx";
+    // std::vector<int64_t> inputShape;
+    // auto outputName;
+    // auto outputTypeInfo;
+    // auto outputTensorInfo;
+    // auto outputShape;
+    // auto outputDataType;
 
 
 
-    /*
+        /*
 
 
     @Info
@@ -361,6 +418,10 @@ public:
     ref<Texture> mpRtMip;
     ref<Resource> motionVectorResource;
     ref<Texture> motionVectorTexture;
+
+    // Ort::SessionOptions* sessionOptions;
+    // OrtApi* ortApi;
+    // const OrtDmlApi* ortDmlApi;
 
 
 
