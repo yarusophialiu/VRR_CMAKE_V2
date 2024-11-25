@@ -333,6 +333,7 @@ EncodeDecode::EncodeDecode(const SampleAppConfig& config) : SampleApp(config)
         mNVEnc = {};
         mEBufferFormat = NV_ENC_BUFFER_FORMAT_ARGB;
         mCudaDevice = 0;
+        // TODO
         mpRtOut = getDevice()->createTexture2D(mWidth, mHeight, ResourceFormat::BGRA8Unorm, 1, 1, nullptr, ResourceBindFlags::UnorderedAccess | ResourceBindFlags::ShaderResource);
         std::cout << "bitrate: " << bitRate << std::endl;
 
@@ -410,7 +411,7 @@ void EncodeDecode::onLoad(RenderContext* pRenderContext)
 
     // Make output buffer to store ptch motion average
     mpVelocity = mpDevice->createBuffer(4 * sizeof(float), ResourceBindFlags::UnorderedAccess, MemoryType::DeviceLocal);
-    mpPatchTexture = mpDevice->createTexture2D(patchWidth, patchHeight, ResourceFormat::BGRA8Unorm, 1, 1, nullptr, ResourceBindFlags::UnorderedAccess | ResourceBindFlags::ShaderResource | ResourceBindFlags::RenderTarget);
+    mpPatchTexture = mpDevice->createTexture2D(patchWidth, patchHeight, ResourceFormat::RGBA32Float, 1, 1, nullptr, ResourceBindFlags::UnorderedAccess | ResourceBindFlags::ShaderResource | ResourceBindFlags::RenderTarget);
 
     // allocate memory so encoder can work with what we need
     makeEncoderInputBuffers(6);
@@ -485,7 +486,8 @@ Ort::Value EncodeDecode::CreateTensorValueFromD3DResource(
     deleting_unique_ptr<void> dmlAllocatorResourceCleanup(dmlAllocatorResource, deleter);
 
     // Calculate the tensor byte size
-    size_t tensorByteSize = static_cast<size_t>(d3dResource->GetDesc().Width * d3dResource->GetDesc().Height * 3 * 4);
+    std::cout << "width tensor " << d3dResource->GetDesc().Width << " d3dResource->GetDesc().Height " << d3dResource->GetDesc().Height << "\n";
+    size_t tensorByteSize = static_cast<size_t>(d3dResource->GetDesc().Width * d3dResource->GetDesc().Height * 4 * 4); // 4, 4 4 chanels, 4 bytes
     // std::cout << "inputShape " << inputShape.size() << "\n";
 
     // Create the ORT Value
@@ -499,6 +501,7 @@ Ort::Value EncodeDecode::CreateTensorValueFromD3DResource(
             elementDataType
         )
     );
+
 
     // Return values and the wrapped resource.
     *dmlEpResourceWrapper = dmlAllocatorResource;
@@ -542,9 +545,6 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
         // blit from one frame buffer (or texture) to another
         // displaying the final rendered image to the screen, framebuffer represents the final render target, usually the screen or a backbuffer
         // pRenderContext->blit(mpRenderGraph->getOutput("TAA.colorOut")->getSRV(), pTargetFbo->getRenderTargetView(0));
-
-        // Sleep(100);
-        // std::cout << "sleep here \n";
 
         cpuWaitForFencePoint(mpDecodeFence->getNativeHandle().as<ID3D12Fence*>(), mNDecodeFenceVal);
         // pRenderContext->blit(mpRenderGraph->getOutput("TAA.colorOut")->getSRV(), pTargetFbo->getRenderTargetView(0));
@@ -642,7 +642,7 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
                                                 0,
                                                 OrtMemType::OrtMemTypeDefault);
             std::cout << "device type " << memoryInformation.GetDeviceType() << "\n";
-            std::vector<int64_t> inputImgShape = {1, 3, 128, 128};
+            std::vector<int64_t> inputImgShape = {1, 4, 128, 128};
             std::vector<int64_t> inputScalarShape = { 1 };
             ComPtr<IUnknown> inputImgTensorEpWrapper;
             ComPtr<IUnknown> inputFpsTensorEpWrapper;
@@ -657,19 +657,22 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
             std::vector<float> outputResTensorValues(outputResTensorSize); // output will be loaded into the vector
             std::vector<float> outputFpsTensorValues(outputFpsTensorSize);
 
-            Ort::Value inputImgTensor = CreateTensorValueFromD3DResource(*ortDmlApi, memoryInformation, mpPatchBuffer.Get(), inputImgShape, ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT, IID_PPV_ARGS_Helper(inputImgTensorEpWrapper.GetAddressOf()));
+            // Ort::Value inputImgTensor = CreateTensorValueFromD3DResource(*ortDmlApi, memoryInformation, mpPatchBuffer.Get(), inputImgShape, ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT, IID_PPV_ARGS_Helper(inputImgTensorEpWrapper.GetAddressOf()));
             Ort::Value inputFpsTensor = CreateTensorValueFromD3DResource(*ortDmlApi, memoryInformation, mpFpsBuffer.Get(), inputScalarShape, ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64, IID_PPV_ARGS_Helper(inputFpsTensorEpWrapper.GetAddressOf()));
-            Ort::Value inputBitrateTensor = CreateTensorValueFromD3DResource(*ortDmlApi, memoryInformation, mpBitrateBuffer.Get(), inputScalarShape, ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64, IID_PPV_ARGS_Helper(inputBitrateTensorEpWrapper.GetAddressOf()));
-            Ort::Value inputResolutionTensor = CreateTensorValueFromD3DResource(*ortDmlApi, memoryInformation, mpResBuffer.Get(), inputScalarShape, ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64, IID_PPV_ARGS_Helper(inputResolutionTensorEpWrapper.GetAddressOf()));
-            Ort::Value inputVelocityTensor = CreateTensorValueFromD3DResource(*ortDmlApi, memoryInformation, mpVelocityBuffer.Get(), inputScalarShape, ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT, IID_PPV_ARGS_Helper(inputVelocityTensorEpWrapper.GetAddressOf()));
+            // Ort::Value inputBitrateTensor = CreateTensorValueFromD3DResource(*ortDmlApi, memoryInformation, mpBitrateBuffer.Get(), inputScalarShape, ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT, IID_PPV_ARGS_Helper(inputBitrateTensorEpWrapper.GetAddressOf()));
+            // Ort::Value inputResolutionTensor = CreateTensorValueFromD3DResource(*ortDmlApi, memoryInformation, mpResBuffer.Get(), inputScalarShape, ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT, IID_PPV_ARGS_Helper(inputResolutionTensorEpWrapper.GetAddressOf()));
+            // Ort::Value inputVelocityTensor = CreateTensorValueFromD3DResource(*ortDmlApi, memoryInformation, mpVelocityBuffer.Get(), inputScalarShape, ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT, IID_PPV_ARGS_Helper(inputVelocityTensorEpWrapper.GetAddressOf()));
             Ort::Value outputResTensor = Ort::Value::CreateTensor<float>(memoryInformation, outputResTensorValues.data(), outputResTensorSize, outputResDims.data(), outputResDims.size());
             Ort::Value outputFpsTensor = Ort::Value::CreateTensor<float>(memoryInformation, outputFpsTensorValues.data(), outputFpsTensorSize, outputFpsDims.data(), outputFpsDims.size());
 
-            // Create input and output node names
-            std::vector<const char*> input_node_names = {"images", "fps", "bitrate", "resolution", "velocity"};
-            std::vector<const char*> output_node_names = {"res_out", "fps_out"};
+            // Create input and output node namesW
+            // "images", "fps", "bitrate", "resolution", "velocity"
+            // std::vector<const char*> input_node_names = {"images", "fps", "bitrate", "resolution", "velocity"};
+            std::vector<const char*> input_node_names = {"input"};
+            // std::vector<const char*> output_node_names = {"res_out", "fps_out"};
+            std::vector<const char*> output_node_names = {"output1", "output2"};
 
-            auto bindings = Ort::IoBinding::IoBinding(*ortSession);
+            // auto bindings = Ort::IoBinding::IoBinding(*ortSession);
             // bindings.BindInput(ortSession->GetInputNameAllocated(0, ortAllocator).get(), inputImgTensor);
             // bindings.BindInput(ortSession->GetInputNameAllocated(1, ortAllocator).get(), inputFpsTensor);
             // bindings.BindInput(ortSession->GetInputNameAllocated(2, ortAllocator).get(), inputBitrateTensor);
@@ -679,21 +682,32 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
             // bindings.BindOutput(ortSession->GetOutputNameAllocated(1, ortAllocator).get(), outputFpsTensor);
 
             // // Run the session to get inference results.
-            // Ort::RunOptions runOpts;
+            // Ort::RunOptions runOpts = Ort::RunOptions();
+
             // ortSession->Run(runOpts, bindings);
-            // // bindings.SynchronizeOutputs();
+            // bindings.SynchronizeOutputs();
 
-            // // Ort::Value values[]
-            // std::vector<Ort::Value> inputValues = {
-            //                         CreateTensorValueFromD3DResource(*ortDmlApi, memoryInformation, mpPatchBuffer.Get(), inputImgShape, ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT, IID_PPV_ARGS_Helper(inputImgTensorEpWrapper.GetAddressOf())),
-            //                         CreateTensorValueFromD3DResource(*ortDmlApi, memoryInformation, mpFpsBuffer.Get(), inputScalarShape, ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64, IID_PPV_ARGS_Helper(inputFpsTensorEpWrapper.GetAddressOf())),
-            //                         CreateTensorValueFromD3DResource(*ortDmlApi, memoryInformation, mpBitrateBuffer.Get(), inputScalarShape, ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64, IID_PPV_ARGS_Helper(inputBitrateTensorEpWrapper.GetAddressOf())),
-            //                         CreateTensorValueFromD3DResource(*ortDmlApi, memoryInformation, mpResBuffer.Get(), inputScalarShape, ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64, IID_PPV_ARGS_Helper(inputResolutionTensorEpWrapper.GetAddressOf())),
-            //                         CreateTensorValueFromD3DResource(*ortDmlApi, memoryInformation, mpVelocityBuffer.Get(), inputScalarShape, ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT, IID_PPV_ARGS_Helper(inputVelocityTensorEpWrapper.GetAddressOf()))
-            //                       };
+            // Ort::Value values[]
+            // std::vector<Ort::Value>
+            Ort::Value inputValues[] = {
+                                    // CreateTensorValueFromD3DResource(*ortDmlApi, memoryInformation, mpPatchBuffer.Get(), inputImgShape, ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT, IID_PPV_ARGS_Helper(inputImgTensorEpWrapper.GetAddressOf())),
+                                    CreateTensorValueFromD3DResource(*ortDmlApi, memoryInformation, mpFpsBuffer.Get(), inputScalarShape, ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64, IID_PPV_ARGS_Helper(inputFpsTensorEpWrapper.GetAddressOf())),
+                                    // CreateTensorValueFromD3DResource(*ortDmlApi, memoryInformation, mpBitrateBuffer.Get(), inputScalarShape, ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64, IID_PPV_ARGS_Helper(inputBitrateTensorEpWrapper.GetAddressOf())),
+                                    // CreateTensorValueFromD3DResource(*ortDmlApi, memoryInformation, mpResBuffer.Get(), inputScalarShape, ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64, IID_PPV_ARGS_Helper(inputResolutionTensorEpWrapper.GetAddressOf())),
+                                    // CreateTensorValueFromD3DResource(*ortDmlApi, memoryInformation, mpVelocityBuffer.Get(), inputScalarShape, ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT, IID_PPV_ARGS_Helper(inputVelocityTensorEpWrapper.GetAddressOf()))
+                                  };
+            Ort::Value outputValues[] = {
+                    Ort::Value::CreateTensor<float>(memoryInformation, outputResTensorValues.data(), outputResTensorSize, outputResDims.data(), outputResDims.size()),
+                    Ort::Value::CreateTensor<float>(memoryInformation, outputFpsTensorValues.data(), outputFpsTensorSize, outputFpsDims.data(), outputFpsDims.size())
+            };
 
 
-            // // Evaluate
+            Ort::Value outputTensor(nullptr);
+            ortSession->Run(Ort::RunOptions{ nullptr }, input_node_names.data(), &inputFpsTensor, 1, output_node_names.data(), outputValues, 2);
+            // auto output_tensors = ortSession->Run(Ort::RunOptions{ nullptr }, input_node_names.data(), &inputFpsTensor, 1, output_node_names.data(), 2);
+
+
+            // // // Evaluate
             // auto output_tensors = ortSession->Run(Ort::RunOptions{ nullptr }, input_node_names.data(),
             //                                         inputValues,
             //                                         5, output_node_names.data(), 2);
@@ -731,11 +745,18 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
 
             // std::cout << "patchData.size() " << patchData.size() << " inputBuffer.size() " << inputBuffer.size() << "\n";
 
-            // auto inputDataType = ortSession.GetInputTypeInfo(0).GetTensorTypeAndShapeInfo().GetElementType();
-            // // TODO: patch data into inputbuffer
-            // // assert(patchData.size() == inputBuffer.size());
-            // // // Use `std::memcpy` to copy the data
-            // // std::memcpy(inputBuffer.data(), patchData.data(), patchData.size());
+            // auto inputDataType = ortSession->GetInputTypeInfo(0).GetTensorTypeAndShapeInfo().GetElementType();
+            // auto inputDataType1 = ortSession->GetInputTypeInfo(1).GetTensorTypeAndShapeInfo().GetElementType();
+            // auto inputDataType2 = ortSession->GetInputTypeInfo(2).GetTensorTypeAndShapeInfo().GetElementType();
+            // auto inputDataType3 = ortSession->GetInputTypeInfo(3).GetTensorTypeAndShapeInfo().GetElementType();
+            // auto inputDataType4 = ortSession->GetInputTypeInfo(4).GetTensorTypeAndShapeInfo().GetElementType();
+
+            // auto outputDataType0 = ortSession->GetOutputTypeInfo(0).GetTensorTypeAndShapeInfo().GetElementType();
+            // auto outputDataType1 = ortSession->GetOutputTypeInfo(1).GetTensorTypeAndShapeInfo().GetElementType();
+            // TODO: patch data into inputbuffer
+            // assert(patchData.size() == inputBuffer.size());
+            // // Use `std::memcpy` to copy the data
+            // std::memcpy(inputBuffer.data(), patchData.data(), patchData.size());
 
             // int64_t fps = 166;
             // int64_t bitrate = 500;
@@ -750,7 +771,7 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
             // Ort::AllocatorWithDefaultOptions allocator;
             // Ort::MemoryInfo memoryInfo = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
 
-            // std::vector<int64_t> inputDims = {1, 3, patchHeight, patchWidth};
+            // std::vector<int64_t> inputDims = {1, 4, patchHeight, patchWidth};
             // std::vector<int64_t> scalerInputDims = {1};
             // Ort::Value inputImageTensor = Ort::Value::CreateTensor<float>(memoryInfo, floatData.data(), floatData.size(), inputDims.data(), inputDims.size());
             // Ort::Value inputFpsTensor = Ort::Value::CreateTensor<int64_t>(memoryInfo, fpsVec.data(), fpsVec.size(), scalerInputDims.data(), scalerInputDims.size());
@@ -1539,7 +1560,7 @@ void EncodeDecode::CreateFpsBuffer()
 {
     // Define the geometry for a quad.
     int64_t scalarValues[] = {166};
-    const UINT scalarBufferSize = sizeof(scalarValues);
+    const UINT scalarBufferSize = sizeof(scalarValues); // sizeof(int64_t);
 
     // Note: using upload heaps to transfer static data like vert buffers is not
     // recommended. Every time the GPU needs it, the upload heap will be marshalled
@@ -1564,7 +1585,7 @@ void EncodeDecode::CreateFpsBuffer()
 
     // Initialize the vertex buffer view.
     mpFpsBufferView.BufferLocation = mpFpsBuffer->GetGPUVirtualAddress();
-    mpFpsBufferView.StrideInBytes = sizeof(float);
+    mpFpsBufferView.StrideInBytes = sizeof(int64_t);
     mpFpsBufferView.SizeInBytes = scalarBufferSize;
 }
 
@@ -1597,7 +1618,7 @@ void EncodeDecode::CreateBitrateBuffer()
 
     // Initialize the vertex buffer view.
     mpBitrateBufferView.BufferLocation = mpBitrateBuffer->GetGPUVirtualAddress();
-    mpBitrateBufferView.StrideInBytes = sizeof(float);
+    mpBitrateBufferView.StrideInBytes = sizeof(int64_t);
     mpBitrateBufferView.SizeInBytes = scalarBufferSize;
 }
 
@@ -1630,7 +1651,7 @@ void EncodeDecode::CreateResolutionBuffer()
 
     // Initialize the vertex buffer view.
     mpResBufferView.BufferLocation = mpResBuffer->GetGPUVirtualAddress();
-    mpResBufferView.StrideInBytes = sizeof(float);
+    mpResBufferView.StrideInBytes = sizeof(int64_t);
     mpResBufferView.SizeInBytes = scalarBufferSize;
 }
 
@@ -1669,41 +1690,6 @@ void EncodeDecode::CreateVelocityBuffer()
 }
 
 
-
-void EncodeDecode::CreateFloatBuffer(ComPtr<ID3D12Resource> scalarBuffer, D3D12_VERTEX_BUFFER_VIEW scalarBufferView, float scalarValue)
-{
-    // Define the geometry for a quad.
-    float scalarValues[] = {scalarValue};
-    const UINT scalarBufferSize = sizeof(scalarValues);
-
-    // Note: using upload heaps to transfer static data like vert buffers is not
-    // recommended. Every time the GPU needs it, the upload heap will be marshalled
-    // over. Please read up on Default Heap usage. An upload heap is used here for
-    // code simplicity and because there are very few verts to actually transfer.
-    auto heap_properties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-    auto vb_resource_desc = CD3DX12_RESOURCE_DESC::Buffer(scalarBufferSize);
-    mpD3D12Device->CreateCommittedResource(
-        &heap_properties,
-        D3D12_HEAP_FLAG_NONE,
-        &vb_resource_desc,
-        D3D12_RESOURCE_STATE_GENERIC_READ,
-        nullptr,
-        IID_PPV_ARGS(&scalarBuffer));
-
-    // Copy the quad data to the vertex buffer.
-    UINT8* pVertexDataBegin;
-    CD3DX12_RANGE readRange(0, 0);        // We do not intend to read from this resource on the CPU.
-    (scalarBuffer)->Map(0, &readRange, reinterpret_cast<void**>(&pVertexDataBegin));
-    memcpy(pVertexDataBegin, scalarValues, sizeof(scalarValues));
-    (scalarBuffer)->Unmap(0, nullptr);
-
-    // Initialize the vertex buffer view.
-    scalarBufferView.BufferLocation = (scalarBuffer)->GetGPUVirtualAddress();
-    scalarBufferView.StrideInBytes = sizeof(float);
-    scalarBufferView.SizeInBytes = scalarBufferSize;
-}
-
-
 void EncodeDecode::UpdateScalarBuffer(ComPtr<ID3D12Resource> scalarBuffer, float newScalarValue)
 {
     // In DirectX 12, updating an existing buffer typically involves:
@@ -1739,7 +1725,7 @@ void EncodeDecode::CreateCurrentBuffer()
     bufferDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
     bufferDesc.Format = DXGI_FORMAT_UNKNOWN;
     bufferDesc.Height = 1;
-    bufferDesc.Width = ((patchWidth* 4  + 255) & ~255) * patchHeight;
+    bufferDesc.Width = ((patchWidth * 16  + 255) & ~255) * patchHeight;
     bufferDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
     bufferDesc.MipLevels = 1;
     bufferDesc.SampleDesc.Count = 1;
@@ -1762,14 +1748,14 @@ void EncodeDecode::CopyTextureIntoCurrentBuffer()
     mpCommandList->ResourceBarrier(1, &present_to_copy_src);
 
     auto desc = (mpPatchTexture->getNativeHandle().as<ID3D12Resource*>())->GetDesc();
-    UINT64 rowSizeInBytes, totalSizeInBytes;
+    UINT64 rowSizeInBytes, totalSizeInBytes; // 2048=128*16 262144=128x128x4x4
     mpD3D12Device->GetCopyableFootprints(&desc, 0, 1, 0, nullptr, nullptr, &rowSizeInBytes, &totalSizeInBytes);
     D3D12_PLACED_SUBRESOURCE_FOOTPRINT bufferFootprint = {};
     bufferFootprint.Footprint.Width = static_cast<UINT>(desc.Width);
     bufferFootprint.Footprint.Height = desc.Height;
     bufferFootprint.Footprint.Depth = 1;
     bufferFootprint.Footprint.RowPitch = static_cast<UINT>((rowSizeInBytes + 255) & ~255);
-    bufferFootprint.Footprint.Format = desc.Format;
+    bufferFootprint.Footprint.Format = desc.Format; // RGBA32 float
 
     const CD3DX12_TEXTURE_COPY_LOCATION copyDest(mpPatchBuffer.Get(), bufferFootprint);
     const CD3DX12_TEXTURE_COPY_LOCATION copySrc(mpPatchTexture->getNativeHandle().as<ID3D12Resource*>(), 0);
@@ -2180,12 +2166,19 @@ void EncodeDecode::initDirectML()
 {
     sessionOptions = new Ort::SessionOptions();
 
+    // int t;
+    // std::cin >> t;
+
     sessionOptions->DisableMemPattern();
     sessionOptions->SetExecutionMode(ExecutionMode::ORT_SEQUENTIAL);
+    sessionOptions->SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
+
+    OrtSessionOptionsAppendExecutionProvider_DML(*sessionOptions, 0);
 
     // By passing in an explicitly created DML device & queue, the DML execution provider sends work
     // to the desired device. If not used, the DML execution provider will create its own device & queue.
     const OrtApi& ortApi = Ort::GetApi();
+    ortApi.AddFreeDimensionOverrideByName(*sessionOptions, "batch_size", 1);
     // const OrtDmlApi* ortDmlApi = nullptr;
 
     // obtains a pointer to the DML API
@@ -2194,16 +2187,14 @@ void EncodeDecode::initDirectML()
 
     // Load ONNX model into a session.
     env = new Ort::Env(OrtLoggingLevel::ORT_LOGGING_LEVEL_ERROR, "DirectML_CV");
-    ortSession = new Ort::Session(*env, modelPath.wstring().c_str(), *sessionOptions);
 
+    ortSession = new Ort::Session(*env, modelPath.wstring().c_str(), *sessionOptions);
 
     CreateCurrentBuffer();
     CreateFpsBuffer();
     CreateBitrateBuffer();
     CreateResolutionBuffer();
     CreateVelocityBuffer();
-
-
 }
 
 
