@@ -22,8 +22,8 @@ set(NVENC_SDK_LIB_DIR "${NVENC_SDK_ROOT}/Lib/x64")
 # set(NVENC_CURL_DIR "C:/curl-8.10.1") # curl-8.10.1 curl-8.10.1_2
 # set(NVENC_CURL_LIB_DIR "${NVENC_CURL_DIR}/lib")
 set(CODEC_ROOT "C:/cppcodec")
-set(ONNXRUNTIME "C:/Microsoft.ML.OnnxRuntime.DirectML.1.20.0/build/native")
-set(ONNXRUNTIME_NATIVE "C:/Microsoft.ML.OnnxRuntime.DirectML.1.20.0/runtimes/win-x64/native")
+set(ONNXRUNTIME "C:/Users/15142/.nuget/packages/microsoft.ml.onnxruntime.directml/1.20.0/build/native")
+set(ONNXRUNTIME_NATIVE "C:/Users/15142/.nuget/packages/microsoft.ml.onnxruntime.directml/1.20.0/runtimes/win-x64/native") # C:\Users\15142\packages\Microsoft.ML.OnnxRuntime.DirectML.1.20.0
 
 add_library(ColorSpace STATIC ColorSpace.cu)
 
@@ -36,7 +36,8 @@ target_include_directories(EncodeDecode PRIVATE
     ${ONNXRUNTIME}/include
 )
 
-link_directories("C:/Microsoft.ML.OnnxRuntime.DirectML.1.20.0/runtimes/win-x64/native")
+# link_directories("C:/Microsoft.ML.OnnxRuntime.DirectML.1.20.0/runtimes/win-x64/native")
+link_directories("C:/Users/15142/.nuget/packages/microsoft.ml.onnxruntime.directml/1.20.0/build/native")
 
 target_link_libraries(EncodeDecode PRIVATE
     ${NVENC_SDK_LIB_DIR}/nvcuvid.lib

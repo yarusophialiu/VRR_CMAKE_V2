@@ -364,13 +364,12 @@ public:
         /*out*/ void** dmlEpResourceWrapper // Must stay alive with Ort::Value.
     );
 
-    // void ThrowIfFailed(HRESULT hr);
-
     uint32_t inputChannels;
     uint32_t inputHeight;
     uint32_t inputWidth;
     // uint32_t inputElementSize;
-    std::filesystem::path modelPath = "C:/Users/15142/new/Falcor/Source/Samples/EncodeDecode/smaller_vrr_fp32.onnx";
+    // dummy_4channel_novar.onnx   vrr_classification_float32_4channel
+    std::filesystem::path modelPath = "C:/Users/15142/new/Falcor/Source/Samples/EncodeDecode/simple_model.onnx"; //smaller_vrr_fp32.onnx";
     // std::vector<int64_t> inputShape;
     // auto outputName;
     // auto outputTypeInfo;
