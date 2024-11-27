@@ -30,8 +30,53 @@
 using namespace Falcor;
 
 #define ALIGN_UP(s, a) (((s) + (a)-1) & ~((a)-1))
+#define THROW_IF_FAILED(hr) {HRESULT localHr = (hr); if (FAILED(localHr)) throw localHr;}
+#define THROW_IF_ORT_FAILED(exp) \
+    { \
+        OrtStatus* status = (exp); \
+        if (status != nullptr) \
+        { \
+            throw ConvertOrtStatusToHResult(*status); \
+        } \
+    }
+HRESULT ConvertOrtStatusToHResult(OrtStatus& status)
+{
+    // std::string errorMessage = ortApi.GetErrorMessage(&status);
+    OrtApi const& ortApi = Ort::GetApi(); // Uses ORT_API_VERSION
+    OrtErrorCode ortErrorCode = ortApi.GetErrorCode(&status);
+    ortApi.ReleaseStatus(&status);
+
+    switch (ortErrorCode)
+    {
+    // POSIX error codes really are inadequate to convey common errors, like even just bad file format :/.
+    // Consider using a custom error domain.
+    case OrtErrorCode::ORT_OK:               return S_OK;
+    case OrtErrorCode::ORT_INVALID_ARGUMENT: return E_INVALIDARG;
+    case OrtErrorCode::ORT_NO_SUCHFILE:      return HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND);
+    case OrtErrorCode::ORT_NOT_IMPLEMENTED:  return E_NOTIMPL;
+    case OrtErrorCode::ORT_FAIL:
+    case OrtErrorCode::ORT_NO_MODEL:
+    case OrtErrorCode::ORT_ENGINE_ERROR:
+    case OrtErrorCode::ORT_RUNTIME_EXCEPTION:
+    case OrtErrorCode::ORT_INVALID_PROTOBUF:
+    case OrtErrorCode::ORT_MODEL_LOADED:
+    case OrtErrorCode::ORT_INVALID_GRAPH:
+    case OrtErrorCode::ORT_EP_FAIL:
+    default:                                return E_FAIL;
+    }
+}
+
 
 using Microsoft::WRL::ComPtr;
+
+
+
+union ScalarUnion
+{
+    uint64_t u;
+    int64_t i;
+    double f;
+};
 
 
 struct NvEncInputFrame
@@ -161,15 +206,71 @@ public:
     int getDecoderFrameSize();
 
     void initDirectML();
-    void EncodeDecode::CreateCurrentBuffer();
-    void EncodeDecode::CopyTextureIntoCurrentBuffer();
-    void EncodeDecode::CreateFpsBuffer();
-    void EncodeDecode::CreateBitrateBuffer();
-    void EncodeDecode::CreateResolutionBuffer();
-    void EncodeDecode::CreateVelocityBuffer();
-    void EncodeDecode::CreateFloatBuffer(ComPtr<ID3D12Resource> scalarBuffer, D3D12_VERTEX_BUFFER_VIEW scalarBufferView, float scalarValue);
-    void EncodeDecode::UpdateScalarBuffer(ComPtr<ID3D12Resource> scalarBuffer, float newScalarValue);
+    void CreateCurrentBuffer();
+    void CopyTextureIntoCurrentBuffer();
+    void CreateFpsBuffer();
+    void CreateBitrateBuffer();
+    void CreateResolutionBuffer();
+    void CreateVelocityBuffer();
+    void CreateFloatBuffer(ComPtr<ID3D12Resource> scalarBuffer, D3D12_VERTEX_BUFFER_VIEW scalarBufferView, float scalarValue);
+    void UpdateScalarBuffer(ComPtr<ID3D12Resource> scalarBuffer, float newScalarValue);
 
+    ComPtr<ID3D12Resource> CreateD3D12ResourceOfByteSize(
+            ID3D12Device* d3dDevice,
+            size_t resourceByteSize,
+            D3D12_HEAP_TYPE heapType = D3D12_HEAP_TYPE_DEFAULT,
+            D3D12_RESOURCE_STATES resourceState = D3D12_RESOURCE_STATE_COMMON,
+            D3D12_RESOURCE_FLAGS resourceFlags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS
+            );
+    ComPtr<ID3D12Resource> CreateD3D12ResourceForTensor(
+        ID3D12Device* d3dDevice,
+        size_t elementByteSize,
+        std::span<const int64_t> tensorDimensions
+        );
+
+
+    Ort::Value CreateTensorValueFromExistingD3DResource(
+        OrtDmlApi const& ortDmlApi,
+        Ort::MemoryInfo const& memoryInformation,
+        ID3D12Resource* d3dResource,
+        std::span<const int64_t> tensorDimensions,
+        ONNXTensorElementDataType elementDataType,
+        /*out*/ void** dmlEpResourceWrapper // Must stay alive with Ort::Value.
+    );
+
+
+    std::string GetTensorName(size_t index, Ort::Session const& session, bool isInput);
+    bool IsSupportedOnnxTensorElementDataType(ONNXTensorElementDataType dataType);
+    char const* NameOfOnnxTensorElementDataType(ONNXTensorElementDataType dataType);
+    size_t ByteSizeOfOnnxTensorElementDataType(ONNXTensorElementDataType dataType);
+    void GenerateValueSequence(std::span<std::byte> data, ONNXTensorElementDataType dataType);
+    void FillIntegerValues(std::span<std::byte> data, ONNXTensorElementDataType dataType, ScalarUnion value);
+
+    Ort::Value CreateTensorValueUsingD3DResource(
+        ID3D12Device* d3dDevice,
+        OrtDmlApi const& ortDmlApi,
+        Ort::MemoryInfo const& memoryInformation,
+        std::span<const int64_t> dimensions,
+        ONNXTensorElementDataType elementDataType,
+        size_t elementByteSize,
+        /*out opt*/ ID3D12Resource** d3dResource,
+        /*out*/ void** dmlEpResourceWrapper
+    );
+
+
+
+
+
+    void UploadTensorData(
+        ID3D12CommandQueue* commandQueue,
+        ID3D12CommandAllocator* commandAllocator,
+        ID3D12GraphicsCommandList* commandList,
+        ID3D12Resource* destinationResource,
+        std::span<const std::byte> sourceData
+    );
+
+
+    // void WriteTensorElementOfDataType(void* data, ONNXTensorElementDataType dataType, T newValue);
 
 
     /*
@@ -355,7 +456,7 @@ public:
     Ort::AllocatorWithDefaultOptions ortAllocator;
 
 
-    Ort::Value EncodeDecode::CreateTensorValueFromD3DResource(
+    Ort::Value CreateTensorValueFromD3DResource(
         OrtDmlApi const& dmlApi,
         Ort::MemoryInfo const& memoryInformation,
         ID3D12Resource* d3dResource,
@@ -369,13 +470,17 @@ public:
     uint32_t inputWidth;
     // uint32_t inputElementSize;
     // dummy_4channel_novar.onnx   vrr_classification_float32_4channel
-    std::filesystem::path modelPath = "C:/Users/15142/new/Falcor/Source/Samples/EncodeDecode/simple_model.onnx"; //smaller_vrr_fp32.onnx";
+    std::filesystem::path modelPath = "C:/Users/15142/new/Falcor/Source/Samples/EncodeDecode/smaller_vrr_fp32.onnx"; //smaller_vrr_fp32.onnx";
     // std::vector<int64_t> inputShape;
     // auto outputName;
     // auto outputTypeInfo;
     // auto outputTensorInfo;
     // auto outputShape;
     // auto outputDataType;
+
+    std::map<int, int> reverse_res_map = {{0, 360}, {1, 480}, {2, 720}, {3, 864}, {4, 1080}};
+    std::map<int, int> reverse_fps_map = {{0, 30}, {1, 40}, {2, 50}, {3, 60}, {4, 70}, {5, 80}, {6, 90}, {7, 100}, {8, 110}, {9, 120}};
+
 
 
 

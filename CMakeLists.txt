@@ -1,9 +1,16 @@
 enable_language(CUDA)
+set(CMAKE_CUDA_STANDARD 11) # Example for CUDA 11
+set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_falcor_executable(EncodeDecode)
 find_package(CUDAToolkit REQUIRED)
 
 # add_dependencies(EncodeDecode GBuffer DeferredShading)
 # add_dependencies(EncodeDecode DeferredShading)
+
+# find_package(OpenCV REQUIRED)
+# include_directories(${OpenCV_INCLUDE_DIRS}) # include directories from opencv
 
 target_sources(EncodeDecode PRIVATE
     EncodeDecode.cpp
@@ -24,7 +31,6 @@ set(NVENC_SDK_LIB_DIR "${NVENC_SDK_ROOT}/Lib/x64")
 set(CODEC_ROOT "C:/cppcodec")
 set(ONNXRUNTIME "C:/Users/15142/.nuget/packages/microsoft.ml.onnxruntime.directml/1.20.0/build/native")
 set(ONNXRUNTIME_NATIVE "C:/Users/15142/.nuget/packages/microsoft.ml.onnxruntime.directml/1.20.0/runtimes/win-x64/native") # C:\Users\15142\packages\Microsoft.ML.OnnxRuntime.DirectML.1.20.0
-
 add_library(ColorSpace STATIC ColorSpace.cu)
 
 # specify the directories where the compiler should look for header files when building a target
@@ -36,7 +42,6 @@ target_include_directories(EncodeDecode PRIVATE
     ${ONNXRUNTIME}/include
 )
 
-# link_directories("C:/Microsoft.ML.OnnxRuntime.DirectML.1.20.0/runtimes/win-x64/native")
 link_directories("C:/Users/15142/.nuget/packages/microsoft.ml.onnxruntime.directml/1.20.0/build/native")
 
 target_link_libraries(EncodeDecode PRIVATE
@@ -49,12 +54,9 @@ target_link_libraries(EncodeDecode PRIVATE
     ColorSpace
     d3d11.lib
     dxgi.lib
+    # ${OpenCV_LIBS} # link opencv libraries
 )
 
-# target_link_directories(EncodeDecode PRIVATE
-#     # "${ONNXRUNTIME_ROOTDIR}/lib"
-#     ${ONNXRUNTIME}/lib
-# )
 target_copy_shaders(EncodeDecode Samples/EncodeDecode)
 target_source_group(EncodeDecode "Samples")
 
