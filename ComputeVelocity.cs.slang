@@ -28,21 +28,22 @@ void computeVelocity(uint3 dispatchThreadId: SV_DispatchThreadID)
     // gOutputVelocity[pixelPos.x + gResolution.x * pixelPos.y] = color;
     // compute pathch velocity
 
-    float4 average;
+    float average;
 
     for (int i = 0; i < patchWidth; ++i) {
         for (int j = 0; j < patchHeight; ++j) {
             uint2 pixelPos = uint2(gPatchOffset.x + i, gPatchOffset.y + j);
             float4 colour = gInputImage[pixelPos];
-            average += colour;
+            // average.x += squareroot(colour.x ^2 + colour.y^2) // length function
+            average += sqrt(pow(colour.x, 2) + pow(colour.y, 2));
         }
     }
 
     average /= float(patchWidth * patchHeight); // should motion vector be the first 2 vectors?
-    gOutputVelocity[0] = average.x;
-    gOutputVelocity[1] = average.y;
-    gOutputVelocity[2] = average.z;
-    gOutputVelocity[3] = average.w;
+    gOutputVelocity[0] = average;
+    // gOutputVelocity[1] = average.y;
+    // gOutputVelocity[2] = average.z;
+    // gOutputVelocity[3] = average.w;
 }
 
     // python average
