@@ -550,10 +550,7 @@ void EncodeDecode::onLoad(RenderContext* pRenderContext)
     initDecoder();
     std::cout << "load scene: " << std::endl;
 
-    // readCSV("C:/Users/15142/new/Falcor/Source/Samples/EncodeDecode/nn_results.csv");
-    readFrameData("C:/Users/15142/new/Falcor/Source/Samples/EncodeDecode/nn_results.txt");
-
-
+    // readFrameData("C:/Users/15142/new/Falcor/Source/Samples/EncodeDecode/nn_results.txt");
     loadScene(kDefaultScene, getTargetFbo().get());
 
     Properties gBufferProps = {};
@@ -586,8 +583,11 @@ void EncodeDecode::onLoad(RenderContext* pRenderContext)
     makeEncoderInputBuffers(6);
     makeEncoderOutputBuffers(1);
 
-    // initialize p_res, p_fps
-    initializeProbabilities(frameRate, mHeight);
+    initializeProbabilities(frameRate, mHeight); // initialize p_res, p_fps
+
+    // read from csv files
+    std::string csvFile = "C:/Users/15142/new/Falcor/Source/Samples/EncodeDecode/nnOutput/lost_empire_1_5000kbps_1030_1945.csv";
+    readCsv(csvFile, frameNumbersCSV, resProbabilitiesCSV, fpsProbabilitiesCSV);
 }
 
 
@@ -736,6 +736,91 @@ std::tuple<int, int> EncodeDecode::shouldChangeSettings(int currentFps, int curr
 }
 
 
+
+
+void EncodeDecode::readCsv(const std::string& filename,
+             std::vector<int>& frameNumbers,
+             std::vector<std::vector<float>>& resProbabilities,
+             std::vector<std::vector<float>>& fpsProbabilities) {
+    std::ifstream file(filename);
+
+    if (!file.is_open()) {
+        std::cerr << "Failed to open file for reading: " << filename << std::endl;
+        return;
+    }
+
+    std::string line;
+    while (std::getline(file, line)) {
+        std::istringstream iss(line);
+
+        // Read frame number
+        std::string frameNumberStr;
+        std::getline(iss, frameNumberStr, ',');
+        frameNumbers.push_back(std::stoi(frameNumberStr));
+        std::cout << "frameNumberStr " << frameNumberStr << std::endl;
+
+        // Read resolution probabilities
+        std::string resProbsStr;
+        std::getline(iss, resProbsStr, ',');
+        std::istringstream resStream(resProbsStr);
+        std::vector<float> resProbs;
+        float value;
+        while (resStream >> value) {
+            resProbs.push_back(value);
+        }
+        resProbabilities.push_back(resProbs);
+
+        // Read FPS probabilities
+        std::string fpsProbsStr;
+        std::getline(iss, fpsProbsStr, ',');
+        std::istringstream fpsStream(fpsProbsStr);
+        std::vector<float> fpsProbs;
+        while (fpsStream >> value) {
+            fpsProbs.push_back(value);
+        }
+        fpsProbabilities.push_back(fpsProbs);
+    }
+
+    file.close();
+}
+
+
+
+void EncodeDecode::appendRowToCsv(int frameNumber,
+                    const std::vector<float>& res_probabilities, const std::vector<float>& fps_probabilities) {
+
+    fs::path dirPath = fs::path(szNNOutputPrefixFilePath) / nnOutputFilename;
+    // Open the file in append mode
+    std::ofstream file(dirPath, std::ios::app);
+    // std::ofstream file(filename, std::ios::app); // Open in append mode
+
+    if (!file.is_open()) {
+        std::cerr << "Failed to open the file for appending." << std::endl;
+        return;
+    }
+
+    file << frameNumber << ",";
+
+    // Write resolution probabilities
+    for (size_t i = 0; i < res_probabilities.size(); ++i) {
+        file << res_probabilities[i];
+        if (i != res_probabilities.size() - 1) {
+            file << " "; // Separate probabilities with spaces
+        }
+    }
+    file << ",";
+
+    // Write FPS probabilities
+    for (size_t i = 0; i < fps_probabilities.size(); ++i) {
+        file << fps_probabilities[i];
+        if (i != fps_probabilities.size() - 1) {
+            file << " "; // Separate probabilities with spaces
+        }
+    }
+
+    file << "\n"; // End of the row
+    file.close();
+}
 
 // called in sampleapp renderframe()
 void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& pTargetFbo)
@@ -928,25 +1013,28 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
 
             std::vector<float> res_probabilities = softmax(outputResTensorValues);
             std::vector<float> fps_probabilities = softmax(outputFpsTensorValues);
+            // appendRowToCsv(fCount_rt, res_probabilities, fps_probabilities);
 
-            std::cout << "\nsoftmax of fps, res\n";
-            print_vectors(fps_probabilities, res_probabilities);
 
-            auto [selected_fps, selected_resolution] = shouldChangeSettings(frameRate, mHeight, fps_probabilities, res_probabilities);
-            if (selected_fps != frameRate)
-            {
-                std::cout << "Change fps from " << frameRate << " to " << selected_fps << std::endl;
-                setFrameRate(selected_fps);
-            }
 
-            if (selected_resolution != mHeight)
-            {
-                std::cout << "Change resolution from " << mHeight << " to " << selected_resolution << std::endl;
-                setResolution(res_map_by_height[selected_resolution], selected_resolution);
-            }
+            // std::cout << "\nsoftmax of fps, res\n";
+            // print_vectors(fps_probabilities, res_probabilities);
 
-            std::cout << "\nFrame " << fCount_rt << ": Changing settings to "
-                        << selected_fps << " FPS, " << selected_resolution << "p" << std::endl;
+            // auto [selected_fps, selected_resolution] = shouldChangeSettings(frameRate, mHeight, fps_probabilities, res_probabilities);
+            // if (selected_fps != frameRate)
+            // {
+            //     std::cout << "Change fps from " << frameRate << " to " << selected_fps << std::endl;
+            //     setFrameRate(selected_fps);
+            // }
+
+            // if (selected_resolution != mHeight)
+            // {
+            //     std::cout << "Change resolution from " << mHeight << " to " << selected_resolution << std::endl;
+            //     setResolution(res_map_by_height[selected_resolution], selected_resolution);
+            // }
+
+            // std::cout << "\nFrame " << fCount_rt << ": Changing settings to "
+            //             << selected_fps << " FPS, " << selected_resolution << "p" << std::endl;
 
             // if (fcount == 100 && false)
             // {
@@ -2051,6 +2139,28 @@ int EncodeDecode::getDecoderFrameSize()
 }
 
 
+void EncodeDecode::seNNOutputPrefix(std::string filename)
+{
+    nnOutputFilename = filename;
+    fs::path dirPath = fs::path(szNNOutputPrefixFilePath) / filename;
+    // nnOutputFilename = dirPath.c_str();
+
+     // Create the file
+    std::ofstream file(dirPath);
+    if (file.is_open()) {
+        std::cout << "Empty CSV file created: " << filename << std::endl;
+        file.close();
+    } else {
+        std::cerr << "Failed to create the file: " << filename << std::endl;
+    }
+    // if (file) {
+    //     std::cout << "File created successfully at: " << dirPath.string() << std::endl;
+    //     file.close();
+    // } else {
+    //     std::cerr << "Failed to create the file." << std::endl;
+    // }
+}
+                // const std::map<int, std::pair<std::vector<float>, std::vector<float>>>& data) {
 
 
 
@@ -2372,11 +2482,19 @@ int runMain(int argc, char** argv)
     // create file with customized name
     std::time_t now = std::time(nullptr);
     std::tm* localTime = std::localtime(&now);
+    int month = localTime->tm_mon;
     int day = localTime->tm_mday;
     int hour = localTime->tm_hour;
     int minute = localTime->tm_min;
-    std::string speed = std::to_string(speedInput);
-    std::string filename = scene + "_" + speed + "_day" + std::to_string(day) + "_min" + std::to_string(minute) + ".txt";
+    std::ostringstream filename;
+    filename << scene << "_" << std::to_string(speedInput) << "_" << std::to_string(bitrate) << "kbps_"
+            << std::setw(2) << std::setfill('0') << month   // Format month as 2 digits
+            << std::setw(2) << std::setfill('0') << day << "_"
+            << std::setw(2) << std::setfill('0') << hour
+            << std::setw(2) << std::setfill('0') << minute << ".csv";
+    // std::string filename = scene + "_" + std::to_string(speedInput) + "_" + std::to_string(month) + std::to_string(bitrate) + "kbps_" + std::to_string(day) + "_min" + std::to_string(minute) + ".txt";
+    std::cout << "filename is " << filename.str() << std::endl;
+    // encodeDecode.seNNOutputPrefix(filename.str());
 
 
 

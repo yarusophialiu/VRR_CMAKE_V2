@@ -116,6 +116,8 @@ public:
     void setRefPrefix(std::string scene, unsigned int Input);
     void setMotionPrefix(std::string scene, unsigned int Input, unsigned int framerate, unsigned int bitrate, unsigned int height);
     void setDefaultScene(std::string scenePath);
+    void seNNOutputPrefix(std::string time);
+
 
 
     // void setMotionFile(std::string name); // Setter for frameRate
@@ -546,12 +548,20 @@ public:
     char kDefaultScene[256] = "";
     char szRefPrefixFilePath[256] = "encodedH264/";
     char szMotionPrefixFilePath[256] = "motion/";
+    char szNNOutputPrefixFilePath[256] = "nnOutput/";
     char szOutFilePath[256] = "";
     char szRefOutFilePath[256];
     char szDecOutFilePath[256];
-    // char nnOutputsFile = "";
-    // const char* refBaseFilePath = "D:/VRR-frame/room-normal/refOutputBMP/";
-    // const char* decBaseFilePath = "D:/VRR-frame/room-normal/decOutputBMP/";
+    std::string nnOutputFilename = "";
+
+    std::vector<int> frameNumbersCSV;
+    std::vector<std::vector<float>> resProbabilitiesCSV;
+    std::vector<std::vector<float>> fpsProbabilitiesCSV;
+    void appendRowToCsv(int frameNumber, const std::vector<float>& res_probabilities, const std::vector<float>& fps_probabilities);
+    void readCsv(const std::string& filename,
+             std::vector<int>& frameNumbers,
+             std::vector<std::vector<float>>& resProbabilities,
+             std::vector<std::vector<float>>& fpsProbabilities);
 
     const char* refBaseFilePath = "refOutputBMP/";
     const char* decBaseFilePath = "decOutputBMP/";
