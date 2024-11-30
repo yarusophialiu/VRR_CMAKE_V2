@@ -479,7 +479,13 @@ public:
     // auto outputDataType;
 
     std::map<int, int> reverse_res_map = {{0, 360}, {1, 480}, {2, 720}, {3, 864}, {4, 1080}};
+    std::map<int, int> res_map_by_height = {{360, 640}, {480, 854}, {720, 1280}, {864, 1536}, {1080, 1920}};
     std::map<int, int> reverse_fps_map = {{0, 30}, {1, 40}, {2, 50}, {3, 60}, {4, 70}, {5, 80}, {6, 90}, {7, 100}, {8, 110}, {9, 120}};
+    std::vector<float> p_res = {0,0,0,0,0};
+    std::vector<float> p_fps = {0,0,0,0,0,0,0,0,0,0};
+    std::tuple<int, int> shouldChangeSettings(int currentFps, int currentResolution,  std::vector<float>& fps_probabilities,  std::vector<float>& res_probabilities);
+    void initializeProbabilities(int currentFps, int currentRes);
+
 
 
 
@@ -543,6 +549,7 @@ public:
     char szOutFilePath[256] = "";
     char szRefOutFilePath[256];
     char szDecOutFilePath[256];
+    // char nnOutputsFile = "";
     // const char* refBaseFilePath = "D:/VRR-frame/room-normal/refOutputBMP/";
     // const char* decBaseFilePath = "D:/VRR-frame/room-normal/decOutputBMP/";
 

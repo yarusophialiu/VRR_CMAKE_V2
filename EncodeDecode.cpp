@@ -178,6 +178,37 @@ void writeBMP(const char* filename, uint8_t* imageData, int width, int height)
     // file.close();
 }
 
+void print_vectors(std::vector<float>& fps_vector, std::vector<float>& res_vector)
+{
+    for (float fps : fps_vector) {
+        std::cout << fps << " ";
+    }
+    std::cout << std::endl;
+
+    for (float res : res_vector) {
+        std::cout << res << " ";
+    }
+    std::cout << std::endl;
+}
+
+
+std::vector<float> softmax(const std::vector<float>& logits) {
+    std::vector<float> probabilities(logits.size());
+    float maxLogit = *std::max_element(logits.begin(), logits.end()); // For numerical stability
+
+    // Compute the exponentials and sum them
+    float sumExp = 0.0f;
+    for (float logit : logits) {
+        sumExp += std::exp(logit - maxLogit); // Subtract maxLogit for stability
+    }
+
+    // Compute probabilities
+    for (size_t i = 0; i < logits.size(); ++i) {
+        probabilities[i] = std::exp(logits[i] - maxLogit) / sumExp;
+    }
+
+    return probabilities;
+}
 
 
 // void saveAsImage(const std::string& baseFilename, int count, const std::vector<uint8_t>& patchData, int width, int height) {
@@ -196,6 +227,16 @@ void writeBMP(const char* filename, uint8_t* imageData, int width, int height)
 //     }
 // }
 
+// Function to write predicted streaming results to a file
+void writeToFile(const std::string& filename, int frameNumber, int fps, int resolution) {
+    std::ofstream file(filename, std::ios::app);  // Open in append mode
+    if (!file.is_open()) {
+        std::cerr << "Error opening file: " << filename << std::endl;
+        return;
+    }
+    file << frameNumber << "," << fps << "," << resolution << std::endl;
+    file.close();
+}
 
 
 void saveAsBMP(const std::string& baseFilename, int count, const std::vector<uint8_t>& patchData, int width, int height) {
@@ -271,8 +312,33 @@ void saveAsBMP(const std::string& baseFilename, int count, const std::vector<uin
 }
 
 
+void readFrameData(const std::string& filename) {
+    std::ifstream file(filename);  // Open the file for reading
 
+    // Check if the file opened successfully
+    if (!file.is_open()) {
+        std::cerr << "Error opening the file!" << std::endl;
+        return;
+    }
 
+    std::string line;
+    while (std::getline(file, line)) {  // Read the file line by line
+        std::cout << line << std::endl;  // Print each line to the console
+        std::stringstream ss(line);  // Create a stringstream to parse the line
+        int nn_count, nn_fps;
+        std::string resolution;
+
+        // Parse the line, separating by commas
+        char delimiter;  // To handle the commas in the line
+        ss >> nn_count >> delimiter >> nn_fps >> delimiter >> resolution;
+
+        // Output the values
+        std::cout << "nn_count: " << nn_count << ", nn_fps: " << nn_fps << ", Resolution: " << resolution << std::endl;
+
+    }
+
+    file.close();  // Close the file after reading
+}
 
 
 
@@ -483,7 +549,9 @@ void EncodeDecode::onLoad(RenderContext* pRenderContext)
     initEncoder();
     initDecoder();
     std::cout << "load scene: " << std::endl;
-    std::cout << "inputChannels " << inputChannels << "\n"; // 3
+
+    // readCSV("C:/Users/15142/new/Falcor/Source/Samples/EncodeDecode/nn_results.csv");
+    readFrameData("C:/Users/15142/new/Falcor/Source/Samples/EncodeDecode/nn_results.txt");
 
 
     loadScene(kDefaultScene, getTargetFbo().get());
@@ -517,7 +585,27 @@ void EncodeDecode::onLoad(RenderContext* pRenderContext)
     // allocate memory so encoder can work with what we need
     makeEncoderInputBuffers(6);
     makeEncoderOutputBuffers(1);
+
+    // initialize p_res, p_fps
+    initializeProbabilities(frameRate, mHeight);
 }
+
+
+// Function to initialize probabilities
+void EncodeDecode::initializeProbabilities(int currentFps, int currentRes) {
+    for (size_t i = 0; i < 10; ++i) {
+        if (reverse_fps_map[i] == currentFps) {
+            p_fps[i] = 1.0f;
+        }
+    }
+
+    for (size_t i = 0; i < 5; ++i) {
+        if (reverse_res_map[i] == mHeight) {
+            p_res[i] = 1.0f;
+        }
+    }
+}
+
 
 /*resize window changes the size of presenter of the decoded frame*/
 void EncodeDecode::onResize(uint32_t width, uint32_t height)
@@ -560,6 +648,93 @@ void EncodeDecode::extract_patch_from_frame(std::vector<uint8_t>& renderedFrameV
         }
     }
 }
+
+
+// Function to decide if settings should change, output fps, resolution based on probability
+std::tuple<int, int> EncodeDecode::shouldChangeSettings(int currentFps, int currentResolution,  std::vector<float>& fps_probabilities,  std::vector<float>& res_probabilities) {
+    // Adjust probabilities based on currentResolution
+    for (int index = 0; index < res_probabilities.size(); ++index) {
+        int resolution = reverse_res_map[index];
+        if (resolution == currentResolution) {
+            p_res[index] += 0.3f + res_probabilities[index];
+        } else {
+            p_res[index] += res_probabilities[index];
+        }
+    }
+
+    for (int index = 0; index < fps_probabilities.size(); ++index) {
+        int fps = reverse_fps_map[index];
+        if (fps == currentFps) {
+            p_fps[index] += 0.3f + fps_probabilities[index];
+        } else {
+            p_fps[index] += fps_probabilities[index];
+        }
+    }
+
+    // Find the maximum resolution probability
+    auto max_res_it = std::max_element(p_res.begin(), p_res.end());
+    int max_res_index = std::distance(p_res.begin(), max_res_it);
+    float max_res_value = *max_res_it;
+
+    // Find the maximum FPS probability
+    auto max_fps_it = std::max_element(p_fps.begin(), p_fps.end());
+    int max_fps_index = std::distance(p_fps.begin(), max_fps_it);
+    float max_fps_value = *max_fps_it;
+
+    // if the max value is greater than 1, choose it as selected fps/res
+    // if the selected is different from the current one, reset the fps/res
+    int selected_fps = (max_fps_value > 1) ? reverse_fps_map[max_fps_index] : currentFps;
+    int selected_res = (max_res_value > 1) ? reverse_res_map[max_res_index] : currentResolution;
+
+    std::cout << "selected_fps " << selected_fps << ", currentFps " << currentFps << std::endl;
+    std::cout << "selected_res " << selected_res << ", currentResolution " << currentResolution << std::endl;
+
+    if (selected_fps != currentFps)
+    {
+        std::cout << "reset p_fps " << std::endl;
+        for (size_t i = 0; i < p_fps.size(); ++i) {
+            if (reverse_fps_map.at(i) == selected_fps) {
+                p_fps[i] = 1.0f; // Set probability to 1 for selected FPS
+            } else {
+                p_fps[i] = 0.0f; // Set probability to 0 for others
+            }
+        }
+    }
+
+    if (selected_res != currentResolution)
+    {
+        std::cout << "reset p_res " << std::endl;
+
+        for (size_t i = 0; i < p_res.size(); ++i) {
+            if (reverse_res_map.at(i) == selected_res) {
+                p_res[i] = 1.0f;
+            } else {
+                p_res[i] = 0.0f;
+            }
+        }
+    }
+
+    std::cout << "p_fps, p_res now " << std::endl;
+    print_vectors(p_fps, p_res);
+
+
+    std::cout << "Max resolution index: " << max_res_index << ", value: " << max_res_value << std::endl;
+    std::cout << "Max FPS index: " << max_fps_index << ", value: " << max_fps_value << std::endl;
+
+    // Output the updated probabilities
+    std::cout << "Transition probabilities of resolution, fps:" << std::endl;
+    for (float prob : p_res) {
+        std::cout << prob << " ";
+    }
+    std::cout << std::endl;
+    for (float prob : p_fps) {
+        std::cout << prob << " ";
+    }
+    std::cout << std::endl;
+
+    return std::make_tuple(selected_fps, selected_res);
+}
+
 
 
 // called in sampleapp renderframe()
@@ -617,10 +792,6 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
         decodeFrameBuffer(); // mDecodedFrame updated, then call handlePictureDecode
         getTextRenderer().render(pRenderContext, getFrameRate().getMsg(), pTargetFbo, {20, 20}); // print fps on the screen
 
-        // std::cout << "frameCounter " << frameCounter << "\n";
-        // std::cout << "fcount " << fcount << "\n";
-        // frameCounter++;
-
         if (fCount_rt >= 2)
         {
             std::cout << "\nfCount_rt: " << fCount_rt << "\n";
@@ -661,12 +832,10 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
             }
 
 
-            // // Run inference ONNXRUNTIME
             // Falcor::uint4 srcRect = {0u, 0u, (unsigned int)patchWidth, (unsigned int)patchHeight};
             // pRenderContext->blit(mpRenderGraph->getOutput("TAA.colorOut")->asTexture()->getSRV(), mpPatchTexture->asTexture()->getRTV(), srcRect);
 
             // ref<Texture> is a handle of pixel values on gpu
-            // compute velocity
             // auto [startX, startY] = getRandomStartCoordinates(mWidth, mHeight, 128, 128);
             auto startX = 0;
             auto startY = 0;
@@ -692,17 +861,12 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
             // TODO: save patch
 
 
-            std::vector<float> floatData(patchData.size()); // how many channels?
+            std::vector<float> floatData(patchData.size()); // how many channels? 49152 = 128x128x3
 
             // Normalize each uint8_t to a float in the range [0, 1]
             for (size_t i = 0; i < patchData.size(); ++i) {
                 floatData[i] = static_cast<float>(patchData[i]) / 255.0f;
             }
-
-            std::cout << "patchData.size() " << patchData.size() << "\n";
-
-            // auto inputDataType = ortSession->GetInputTypeInfo(0).GetTensorTypeAndShapeInfo().GetElementType();
-
 
             int64_t fps = 166;
             // int64_t bitrate = 500;
@@ -713,7 +877,6 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
             std::vector<int64_t> resolutionVec = {1080};
             std::vector<float> velocityVec = {patchVelocity};
 
-            // Create Ort::Value objects for the scalars
             Ort::AllocatorWithDefaultOptions allocator;
             Ort::MemoryInfo memoryInfo = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
 
@@ -743,28 +906,47 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
             bindings.BindOutput(ortSession->GetOutputNameAllocated(0, ortAllocator).get(), outputResTensor);
             bindings.BindOutput(ortSession->GetOutputNameAllocated(1, ortAllocator).get(), outputFpsTensor);
 
-            // Run the session to get inference results.
             Ort::RunOptions runOpts;
             runOpts.SetRunLogVerbosityLevel(1); // 0 = Default, higher values mean more detailed logging
-
             ortSession->Run(runOpts, bindings);
             bindings.SynchronizeOutputs();
 
-            std::cout << "Tensor size: " << outputResTensorValues.size() << std::endl;
+            // std::cout << "nn output of fps, res" << " ";
+            // print_vectors(outputFpsTensorValues, outputResTensorValues);
 
             // Find predictions
             int res_pred_index = argmax(outputResTensorValues);
             int fps_pred_index = argmax(outputFpsTensorValues);
-
-            // Map predictions to resolution and fps
             int predicted_resolution = reverse_res_map[res_pred_index];
             int predicted_fps = reverse_fps_map[fps_pred_index];
 
             // Print predictions
-            std::cout << "res_preds: " << res_pred_index << ", predicted_resolution: " << predicted_resolution << "p" << std::endl;
             std::cout << "fps_preds: " << fps_pred_index << ", predicted_fps: " << predicted_fps << " fps" << std::endl;
-            saveAsBMP("patchData", fCount_rt, patchData, patchWidth, patchHeight); // C:\Users\15142\new\Falcor\build\windows-vs2022\bin\Debug
+            std::cout << "res_preds: " << res_pred_index << ", predicted_resolution: " << predicted_resolution << "p" << std::endl;
+            // std::cout << "current fps: " << frameRate << ", current resolution: " << mHeight << " fps" << std::endl;
+            // saveAsBMP("patchData", fCount_rt, patchData, patchWidth, patchHeight); // C:\Users\15142\new\Falcor\build\windows-vs2022\bin\Debug
 
+            std::vector<float> res_probabilities = softmax(outputResTensorValues);
+            std::vector<float> fps_probabilities = softmax(outputFpsTensorValues);
+
+            std::cout << "\nsoftmax of fps, res\n";
+            print_vectors(fps_probabilities, res_probabilities);
+
+            auto [selected_fps, selected_resolution] = shouldChangeSettings(frameRate, mHeight, fps_probabilities, res_probabilities);
+            if (selected_fps != frameRate)
+            {
+                std::cout << "Change fps from " << frameRate << " to " << selected_fps << std::endl;
+                setFrameRate(selected_fps);
+            }
+
+            if (selected_resolution != mHeight)
+            {
+                std::cout << "Change resolution from " << mHeight << " to " << selected_resolution << std::endl;
+                setResolution(res_map_by_height[selected_resolution], selected_resolution);
+            }
+
+            std::cout << "\nFrame " << fCount_rt << ": Changing settings to "
+                        << selected_fps << " FPS, " << selected_resolution << "p" << std::endl;
 
             // if (fcount == 100 && false)
             // {
@@ -1528,7 +1710,7 @@ NVENCSTATUS EncodeDecode::encodeFrameBuffer()
     // encoded results written to mVOutputRsrc
     NVENCSTATUS nvStatus = mNVEnc.nvEncEncodePicture(mHEncoder, &picParams);
 
-    std::cout << "Endcoding dimensions: " << mWidth << "x" << mHeight << "\n";
+    // std::cout << "Endcoding dimensions: " << mWidth << "x" << mHeight << "\n";
 
     static int fCount = 0;
     waitForCompletionEvent(bufferIndex); // wait for nvEncEncodePicture to finish
@@ -1751,10 +1933,9 @@ int EncodeDecode::handlePictureDecode(CUVIDPICPARAMS* pPicParams)
 {
     static int count = 0;
     // We have parsed an entire frame! Now let's decode it
-    // std::cout << "Frame found: " << count++ << "\n\n";
 
-    std::cout << "Pic params width: " << pPicParams->PicWidthInMbs * 16 << "\n";
-    std::cout << "Old width: " << mOldWidth << "\n";
+    // std::cout << "Pic params width: " << pPicParams->PicWidthInMbs * 16 << "\n";
+    // std::cout << "Old width: " << mOldWidth << "\n";
 
     //  A context represents the environment in which CUDA operations and computations take place
     CUDA_DRVAPI_CALL(cuCtxPushCurrent(mCudaContext)); // CUDA contexts are used to manage the state of the CUDA runtime
@@ -2187,6 +2368,17 @@ int runMain(int argc, char** argv)
     // encodeDecode.setRefPrefix(scene, speedInput);
     encodeDecode.setDefaultScene(scenePath);
     encodeDecode.setSpeed(speedInput);
+
+    // create file with customized name
+    std::time_t now = std::time(nullptr);
+    std::tm* localTime = std::localtime(&now);
+    int day = localTime->tm_mday;
+    int hour = localTime->tm_hour;
+    int minute = localTime->tm_min;
+    std::string speed = std::to_string(speedInput);
+    std::string filename = scene + "_" + speed + "_day" + std::to_string(day) + "_min" + std::to_string(minute) + ".txt";
+
+
 
     return encodeDecode.run();
 }
