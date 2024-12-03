@@ -583,7 +583,7 @@ void EncodeDecode::onLoad(RenderContext* pRenderContext)
     makeEncoderInputBuffers(6);
     makeEncoderOutputBuffers(1);
 
-    initializeProbabilities(frameRate, mHeight); // initialize p_res, p_fps
+    // initializeProbabilities(frameRate, mHeight); // initialize p_res, p_fps
 
     // read from csv files
     std::string csvFile = "C:/Users/15142/new/Falcor/Source/Samples/EncodeDecode/nnOutput/lost_empire_1_5000kbps_1030_1945.csv";
@@ -591,20 +591,20 @@ void EncodeDecode::onLoad(RenderContext* pRenderContext)
 }
 
 
-// Function to initialize probabilities
-void EncodeDecode::initializeProbabilities(int currentFps, int currentRes) {
-    for (size_t i = 0; i < 10; ++i) {
-        if (reverse_fps_map[i] == currentFps) {
-            p_fps[i] = 1.0f;
-        }
-    }
+// // Function to initialize probabilities
+// void EncodeDecode::initializeProbabilities(int currentFps, int currentRes) {
+//     for (size_t i = 0; i < 10; ++i) {
+//         if (reverse_fps_map[i] == currentFps) {
+//             p_fps[i] = 1.0f;
+//         }
+//     }
 
-    for (size_t i = 0; i < 5; ++i) {
-        if (reverse_res_map[i] == mHeight) {
-            p_res[i] = 1.0f;
-        }
-    }
-}
+//     for (size_t i = 0; i < 5; ++i) {
+//         if (reverse_res_map[i] == mHeight) {
+//             p_res[i] = 1.0f;
+//         }
+//     }
+// }
 
 
 /*resize window changes the size of presenter of the decoded frame*/
@@ -653,28 +653,33 @@ void EncodeDecode::extract_patch_from_frame(std::vector<uint8_t>& renderedFrameV
 // Function to decide if settings should change, output fps, resolution based on probability
 std::tuple<int, int> EncodeDecode::shouldChangeSettings(int currentFps, int currentResolution,  std::vector<float>& fps_probabilities,  std::vector<float>& res_probabilities) {
     // Adjust probabilities based on currentResolution
+
+    std::vector<float> p_res(5);
+    std::vector<float> p_fps(10);
+    float bias = 0.5f;
+
     for (int index = 0; index < res_probabilities.size(); ++index) {
         int resolution = reverse_res_map[index];
         if (resolution == currentResolution) {
-            p_res[index] += 0.3f + res_probabilities[index];
+            p_res[index] = bias + res_probabilities[index];
         } else {
-            p_res[index] += res_probabilities[index];
+            p_res[index] = res_probabilities[index];
         }
     }
 
     for (int index = 0; index < fps_probabilities.size(); ++index) {
         int fps = reverse_fps_map[index];
         if (fps == currentFps) {
-            p_fps[index] += 0.3f + fps_probabilities[index];
+            p_fps[index] = bias + fps_probabilities[index];
         } else {
-            p_fps[index] += fps_probabilities[index];
+            p_fps[index] = fps_probabilities[index];
         }
     }
 
     // Find the maximum resolution probability
     auto max_res_it = std::max_element(p_res.begin(), p_res.end());
     int max_res_index = std::distance(p_res.begin(), max_res_it);
-    float max_res_value = *max_res_it;
+    float max_res_value = *max_res_it; //the value is the probability
 
     // Find the maximum FPS probability
     auto max_fps_it = std::max_element(p_fps.begin(), p_fps.end());
@@ -683,37 +688,6 @@ std::tuple<int, int> EncodeDecode::shouldChangeSettings(int currentFps, int curr
 
     // if the max value is greater than 1, choose it as selected fps/res
     // if the selected is different from the current one, reset the fps/res
-    int selected_fps = (max_fps_value > 1) ? reverse_fps_map[max_fps_index] : currentFps;
-    int selected_res = (max_res_value > 1) ? reverse_res_map[max_res_index] : currentResolution;
-
-    std::cout << "selected_fps " << selected_fps << ", currentFps " << currentFps << std::endl;
-    std::cout << "selected_res " << selected_res << ", currentResolution " << currentResolution << std::endl;
-
-    if (selected_fps != currentFps)
-    {
-        std::cout << "reset p_fps " << std::endl;
-        for (size_t i = 0; i < p_fps.size(); ++i) {
-            if (reverse_fps_map.at(i) == selected_fps) {
-                p_fps[i] = 1.0f; // Set probability to 1 for selected FPS
-            } else {
-                p_fps[i] = 0.0f; // Set probability to 0 for others
-            }
-        }
-    }
-
-    if (selected_res != currentResolution)
-    {
-        std::cout << "reset p_res " << std::endl;
-
-        for (size_t i = 0; i < p_res.size(); ++i) {
-            if (reverse_res_map.at(i) == selected_res) {
-                p_res[i] = 1.0f;
-            } else {
-                p_res[i] = 0.0f;
-            }
-        }
-    }
-
     std::cout << "p_fps, p_res now " << std::endl;
     print_vectors(p_fps, p_res);
 
@@ -721,21 +695,113 @@ std::tuple<int, int> EncodeDecode::shouldChangeSettings(int currentFps, int curr
     std::cout << "Max resolution index: " << max_res_index << ", value: " << max_res_value << std::endl;
     std::cout << "Max FPS index: " << max_fps_index << ", value: " << max_fps_value << std::endl;
 
-    // Output the updated probabilities
-    std::cout << "Transition probabilities of resolution, fps:" << std::endl;
-    for (float prob : p_res) {
-        std::cout << prob << " ";
-    }
-    std::cout << std::endl;
-    for (float prob : p_fps) {
-        std::cout << prob << " ";
-    }
-    std::cout << std::endl;
-
-    return std::make_tuple(selected_fps, selected_res);
+    return std::make_tuple(reverse_fps_map[max_fps_index], reverse_res_map[max_res_index]);
 }
 
 
+
+// // Function to decide if settings should change, output fps, resolution based on probability
+// std::tuple<int, int> EncodeDecode::shouldChangeSettings(int currentFps, int currentResolution,  std::vector<float>& fps_probabilities,  std::vector<float>& res_probabilities) {
+//     // Adjust probabilities based on currentResolution
+//     for (int index = 0; index < res_probabilities.size(); ++index) {
+//         int resolution = reverse_res_map[index];
+//         if (resolution == currentResolution) {
+//             p_res[index] += 0.3f + res_probabilities[index];
+//         } else {
+//             p_res[index] += res_probabilities[index];
+//         }
+//     }
+
+//     for (int index = 0; index < fps_probabilities.size(); ++index) {
+//         int fps = reverse_fps_map[index];
+//         if (fps == currentFps) {
+//             p_fps[index] += 0.3f + fps_probabilities[index];
+//         } else {
+//             p_fps[index] += fps_probabilities[index];
+//         }
+//     }
+
+//     // Find the maximum resolution probability
+//     auto max_res_it = std::max_element(p_res.begin(), p_res.end());
+//     int max_res_index = std::distance(p_res.begin(), max_res_it);
+//     float max_res_value = *max_res_it;
+
+//     // Find the maximum FPS probability
+//     auto max_fps_it = std::max_element(p_fps.begin(), p_fps.end());
+//     int max_fps_index = std::distance(p_fps.begin(), max_fps_it);
+//     float max_fps_value = *max_fps_it;
+
+//     // if the max value is greater than 1, choose it as selected fps/res
+//     // if the selected is different from the current one, reset the fps/res
+//     int selected_fps = (max_fps_value > 1) ? reverse_fps_map[max_fps_index] : currentFps;
+//     int selected_res = (max_res_value > 1) ? reverse_res_map[max_res_index] : currentResolution;
+
+//     std::cout << "selected_fps " << selected_fps << ", currentFps " << currentFps << std::endl;
+//     std::cout << "selected_res " << selected_res << ", currentResolution " << currentResolution << std::endl;
+
+//     if (selected_fps != currentFps)
+//     {
+//         std::cout << "reset p_fps " << std::endl;
+//         for (size_t i = 0; i < p_fps.size(); ++i) {
+//             if (reverse_fps_map.at(i) == selected_fps) {
+//                 p_fps[i] = 1.0f; // Set probability to 1 for selected FPS
+//             } else {
+//                 p_fps[i] = 0.0f; // Set probability to 0 for others
+//             }
+//         }
+//     }
+
+//     if (selected_res != currentResolution)
+//     {
+//         std::cout << "reset p_res " << std::endl;
+
+//         for (size_t i = 0; i < p_res.size(); ++i) {
+//             if (reverse_res_map.at(i) == selected_res) {
+//                 p_res[i] = 1.0f;
+//             } else {
+//                 p_res[i] = 0.0f;
+//             }
+//         }
+//     }
+
+//     std::cout << "p_fps, p_res now " << std::endl;
+//     print_vectors(p_fps, p_res);
+
+
+//     std::cout << "Max resolution index: " << max_res_index << ", value: " << max_res_value << std::endl;
+//     std::cout << "Max FPS index: " << max_fps_index << ", value: " << max_fps_value << std::endl;
+
+//     // Output the updated probabilities
+//     std::cout << "Transition probabilities of resolution, fps:" << std::endl;
+//     for (float prob : p_res) {
+//         std::cout << prob << " ";
+//     }
+//     std::cout << std::endl;
+//     for (float prob : p_fps) {
+//         std::cout << prob << " ";
+//     }
+//     std::cout << std::endl;
+
+//     return std::make_tuple(selected_fps, selected_res);
+// }
+
+
+
+bool EncodeDecode::getProbabilitiesForFrame(int frameNumber, std::vector<float>& resProbabilities, std::vector<float>& fpsProbabilities) {
+    // Find the index of the given frameNumber
+    auto it = std::find(frameNumbersCSV.begin(), frameNumbersCSV.end(), frameNumber);
+    if (it != frameNumbersCSV.end()) {
+        size_t index = std::distance(frameNumbersCSV.begin(), it);
+
+        // Retrieve probabilities for the frame
+        resProbabilities = resProbabilitiesCSV[index];
+        fpsProbabilities = fpsProbabilitiesCSV[index];
+        return true; // Success
+    } else {
+        std::cerr << "Frame number " << frameNumber << " not found." << std::endl;
+        return false; // Frame number not found
+    }
+}
 
 
 void EncodeDecode::readCsv(const std::string& filename,
@@ -921,9 +987,9 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
             // pRenderContext->blit(mpRenderGraph->getOutput("TAA.colorOut")->asTexture()->getSRV(), mpPatchTexture->asTexture()->getRTV(), srcRect);
 
             // ref<Texture> is a handle of pixel values on gpu
-            // auto [startX, startY] = getRandomStartCoordinates(mWidth, mHeight, 128, 128);
-            auto startX = 0;
-            auto startY = 0;
+            auto [startX, startY] = getRandomStartCoordinates(mWidth, mHeight, 128, 128);
+            // auto startX = 10;
+            // auto startY = 10;
             auto rootVar = mpComputeVelocityPass->getRootVar();
             rootVar["gInputImage"] = mpRenderGraph->getOutput("GBuffer.mvec")->asTexture();
             rootVar["gOutputVelocity"] = mpVelocity;
@@ -958,7 +1024,7 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
             // int64_t resolution = 1080;
             // float velocity = 0.5;
             std::vector<int64_t> fpsVec = {fps};
-            std::vector<int64_t> bitrateVec = {bitRate};
+            std::vector<int64_t> bitrateVec = {500}; // TODO: change for bitrate you want
             std::vector<int64_t> resolutionVec = {1080};
             std::vector<float> velocityVec = {patchVelocity};
 
@@ -1005,22 +1071,39 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
             int predicted_resolution = reverse_res_map[res_pred_index];
             int predicted_fps = reverse_fps_map[fps_pred_index];
 
+            float maxRes = *std::max_element(outputResTensorValues.begin(), outputResTensorValues.end());
+            for (float& value : outputResTensorValues) {
+                value /= maxRes;
+            }
+
+            float maxFps = *std::max_element(outputFpsTensorValues.begin(), outputFpsTensorValues.end());
+            for (float& value : outputFpsTensorValues) {
+                value /= maxFps;
+            }
+
+            // std::cout << "outputResTensorValues, outputFpsTensorValues" << " ";
+            // print_vectors(outputResTensorValues, outputFpsTensorValues);
+
+
             // Print predictions
             std::cout << "fps_preds: " << fps_pred_index << ", predicted_fps: " << predicted_fps << " fps" << std::endl;
             std::cout << "res_preds: " << res_pred_index << ", predicted_resolution: " << predicted_resolution << "p" << std::endl;
-            // std::cout << "current fps: " << frameRate << ", current resolution: " << mHeight << " fps" << std::endl;
-            // saveAsBMP("patchData", fCount_rt, patchData, patchWidth, patchHeight); // C:\Users\15142\new\Falcor\build\windows-vs2022\bin\Debug
+            // // std::cout << "current fps: " << frameRate << ", current resolution: " << mHeight << " fps" << std::endl;
+            saveAsBMP("patchData", fCount_rt, patchData, patchWidth, patchHeight); // C:\Users\15142\new\Falcor\build\windows-vs2022\bin\Debug
 
             std::vector<float> res_probabilities = softmax(outputResTensorValues);
             std::vector<float> fps_probabilities = softmax(outputFpsTensorValues);
+            // std::cout << "res_probabilities, fps_probabilities" << " ";
+            // print_vectors(res_probabilities, fps_probabilities);
+
             // appendRowToCsv(fCount_rt, res_probabilities, fps_probabilities);
+            std::vector<float> res_probabilities_csv(5);
+            std::vector<float> fps_probabilities_csv(10);
+            // getProbabilitiesForFrame(fCount_rt, res_probabilities_csv, fps_probabilities_csv);
 
-
-
-            // std::cout << "\nsoftmax of fps, res\n";
-            // print_vectors(fps_probabilities, res_probabilities);
-
-            // auto [selected_fps, selected_resolution] = shouldChangeSettings(frameRate, mHeight, fps_probabilities, res_probabilities);
+            auto [selected_fps, selected_resolution] = shouldChangeSettings(prevFrameRate, prevmHeight, fps_probabilities, res_probabilities);
+            prevFrameRate = selected_fps;
+            prevmHeight = selected_resolution;
             // if (selected_fps != frameRate)
             // {
             //     std::cout << "Change fps from " << frameRate << " to " << selected_fps << std::endl;
@@ -1033,8 +1116,8 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
             //     setResolution(res_map_by_height[selected_resolution], selected_resolution);
             // }
 
-            // std::cout << "\nFrame " << fCount_rt << ": Changing settings to "
-            //             << selected_fps << " FPS, " << selected_resolution << "p" << std::endl;
+            std::cout << "Frame " << fCount_rt << ": Changing settings to "
+                        << selected_fps << " FPS, " << selected_resolution << "p" << std::endl;
 
             // if (fcount == 100 && false)
             // {
@@ -2287,6 +2370,7 @@ void EncodeDecode::setBitRate(unsigned int br)
 void EncodeDecode::setFrameRate(unsigned int fps)
 {
     frameRate = fps; // Assign the private member
+    prevFrameRate = fps; // Assign the private member
     frameLimit = frameRate + numOfFrames * frameRate / 30.0; // 68, 34, 45, 30
     targetFrameTime = 1.0f / frameRate;
     // last_send_time = std::chrono::steady_clock::now();
@@ -2314,6 +2398,7 @@ void EncodeDecode::setResolution(unsigned int width, unsigned int height)
 {
     mWidth = width;
     mHeight = height;
+    prevmHeight = height;
 
     if (mHEncoder != nullptr)
     {
@@ -2435,32 +2520,32 @@ void EncodeDecode::renderRT(RenderContext* pRenderContext, const ref<Fbo>& pTarg
 
 int runMain(int argc, char** argv)
 {
-    // unsigned int bitrate = std::stoi(argv[1]);
-    // unsigned int framerate = std::stoi(argv[2]);
-    // unsigned int width = std::stoi(argv[3]);
-    // unsigned int height = std::stoi(argv[4]);
-    // std::string scene = argv[5];
-    // unsigned int speedInput = std::stoi(argv[6]);
-    // std::string scenePath = argv[7];
+    unsigned int bitrate = std::stoi(argv[1]);
+    unsigned int framerate = std::stoi(argv[2]);
+    unsigned int width = std::stoi(argv[3]);
+    unsigned int height = std::stoi(argv[4]);
+    std::string scene = argv[5];
+    unsigned int speedInput = std::stoi(argv[6]);
+    std::string scenePath = argv[7];
 
-    unsigned int width = 1920; // 1920 1280 640
-    unsigned int height = 1080; // 1080 720 360
-    unsigned int bitrate = 5000;
-    unsigned int framerate = 60;
-    std::string scene = "lost_empire";
+    // unsigned int width = 1920; // 1920 1280 640
+    // unsigned int height = 1080; // 1080 720 360
+    // unsigned int bitrate = 5000;
+    // unsigned int framerate = 166;
+    // std::string scene = "lost_empire"; // lost_empire
 
-    unsigned int speedInput = 1;
-    std::string scenePath = "lost_empire/path1_seg1.fbx"; // no texture, objects are black
+    // unsigned int speedInput = 3;
+    // std::string scenePath = "lost_empire/path1_seg1.fbx"; // no texture, objects are black suntemple_statue03
 
-    std::cout << "\n\nframerate runmain  " << framerate << "\n";
-    std::cout << "bitrate runmain  " << bitrate << "\n";
-    std::cout << "width runmain  " << width << "\n";
-    std::cout << "height runmain  " << height << "\n";
-    std::cout << "scene " << scene << std::endl;
-    std::cout << "speed " << speedInput << std::endl;
-    std::cout << "scenePath " << scenePath << std::endl;
-    //std::cout << "\n\nbitrate std::stoi(argv[1])  " << std::stoi(argv[1]) << "/n";
-    //std::cout << "\n\nnframerate std::stoi(argv[2])  " << std::stoi(argv[2]) << "/n";
+    // std::cout << "\n\nframerate runmain  " << framerate << "\n";
+    // std::cout << "bitrate runmain  " << bitrate << "\n";
+    // std::cout << "width runmain  " << width << "\n";
+    // std::cout << "height runmain  " << height << "\n";
+    // std::cout << "scene " << scene << std::endl;
+    // std::cout << "speed " << speedInput << std::endl;
+    // std::cout << "scenePath " << scenePath << std::endl;
+    // //std::cout << "\n\nbitrate std::stoi(argv[1])  " << std::stoi(argv[1]) << "/n";
+    // //std::cout << "\n\nnframerate std::stoi(argv[2])  " << std::stoi(argv[2]) << "/n";
 
     SampleAppConfig config;
     config.windowDesc.title = "EncodeDecode";
