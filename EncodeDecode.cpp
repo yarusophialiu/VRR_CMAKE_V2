@@ -308,7 +308,7 @@ void saveAsBMP(const std::string& baseFilename, int count, const std::vector<uin
     // Close the file
     outFile.close();
 
-    std::cout << "Image saved to " << filename.str() << std::endl;
+    // std::cout << "Image saved to " << filename.str() << std::endl;
 }
 
 
@@ -586,7 +586,6 @@ void EncodeDecode::onLoad(RenderContext* pRenderContext)
     // initializeProbabilities(frameRate, mHeight); // initialize p_res, p_fps
 
     // read from csv files
-    std::string csvFile = "C:/Users/15142/new/Falcor/Source/Samples/EncodeDecode/nnOutput/lost_empire_1_5000kbps_1030_1945.csv";
     readCsv(csvFile, frameNumbersCSV, resProbabilitiesCSV, fpsProbabilitiesCSV);
 }
 
@@ -823,7 +822,7 @@ void EncodeDecode::readCsv(const std::string& filename,
         std::string frameNumberStr;
         std::getline(iss, frameNumberStr, ',');
         frameNumbers.push_back(std::stoi(frameNumberStr));
-        std::cout << "frameNumberStr " << frameNumberStr << std::endl;
+        // std::cout << "frameNumberStr " << frameNumberStr << std::endl;
 
         // Read resolution probabilities
         std::string resProbsStr;
@@ -987,6 +986,13 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
             // pRenderContext->blit(mpRenderGraph->getOutput("TAA.colorOut")->asTexture()->getSRV(), mpPatchTexture->asTexture()->getRTV(), srcRect);
 
             // ref<Texture> is a handle of pixel values on gpu
+
+            // read from csv
+            std::vector<float> res_probabilities(5);
+            std::vector<float> fps_probabilities(10);
+            // std::vector<float> res_probabilities_csv(5);
+            // std::vector<float> fps_probabilities_csv(10);
+
             auto [startX, startY] = getRandomStartCoordinates(mWidth, mHeight, 128, 128);
             // auto startX = 10;
             // auto startY = 10;
@@ -998,126 +1004,125 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
             mpComputeVelocityPass->execute(pRenderContext, Falcor::uint3(1u, 1u, 1u));
 
             pRenderContext->submit();
-            float patchVelocity = mpVelocity->getElements<float>(0, 1).at(0);
+            float patchVelocity = mpVelocity->getElements<float>(0, 1).at(0) * (frameRate / 166.0f); // compute motion velocity in pixel per degree in terms of fps166
             std::cout << "mpVelocity: " << patchVelocity << "\n"; // starting index, the number of elements
+            std::cout << "frameRate, " << frameRate << ", resolution " << mHeight << "\n"; // starting index, the number of elements
 
 
-            ref<Texture> frameTexture = mpRenderGraph->getOutput("TAA.colorOut")->asTexture(); // GBuffer.mvec
-            std::vector<uint8_t> renderedFrameVal = pRenderContext->readTextureSubresource(frameTexture.get(), 0);
-            std::vector<uint8_t> patchData(patchWidth * patchHeight * 3);
-            uint32_t frameWidth = frameTexture->getWidth();
-            uint32_t frameHeight = frameTexture->getHeight();
-            // renderedFrameVal has 4 channels, patch has 3 channels
-            extract_patch_from_frame(renderedFrameVal, frameWidth, frameHeight, startX, startY, patchData);
-            // TODO: save patch
 
+            if (runONNXModel)
+            {
+                ref<Texture> frameTexture = mpRenderGraph->getOutput("TAA.colorOut")->asTexture(); // GBuffer.mvec
+                std::vector<uint8_t> renderedFrameVal = pRenderContext->readTextureSubresource(frameTexture.get(), 0);
+                std::vector<uint8_t> patchData(patchWidth * patchHeight * 3);
+                uint32_t frameWidth = frameTexture->getWidth();
+                uint32_t frameHeight = frameTexture->getHeight();
+                // renderedFrameVal has 4 channels, patch has 3 channels
+                extract_patch_from_frame(renderedFrameVal, frameWidth, frameHeight, startX, startY, patchData);
 
-            std::vector<float> floatData(patchData.size()); // how many channels? 49152 = 128x128x3
+                std::vector<float> floatData(patchData.size()); // how many channels? 49152 = 128x128x3
 
-            // Normalize each uint8_t to a float in the range [0, 1]
-            for (size_t i = 0; i < patchData.size(); ++i) {
-                floatData[i] = static_cast<float>(patchData[i]) / 255.0f;
+                // Normalize each uint8_t to a float in the range [0, 1]
+                for (size_t i = 0; i < patchData.size(); ++i) {
+                    floatData[i] = static_cast<float>(patchData[i]) / 255.0f;
+                }
+
+                int64_t fps = 166;
+                // int64_t bitrate = 500;
+                std::vector<int64_t> fpsVec = {fps};
+                std::vector<int64_t> bitrateVec = {500}; // TODO: change for bitrate you want
+                std::vector<int64_t> resolutionVec = {1080};
+                std::vector<float> velocityVec = {patchVelocity};
+
+                Ort::AllocatorWithDefaultOptions allocator;
+                Ort::MemoryInfo memoryInfo = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
+
+                std::vector<int64_t> inputDims = {1, 3, patchHeight, patchWidth};
+                std::vector<int64_t> scalerInputDims = {1};
+                Ort::Value inputImageTensor = Ort::Value::CreateTensor<float>(memoryInfo, floatData.data(), floatData.size(), inputDims.data(), inputDims.size());
+                Ort::Value inputFpsTensor = Ort::Value::CreateTensor<int64_t>(memoryInfo, fpsVec.data(), fpsVec.size(), scalerInputDims.data(), scalerInputDims.size());
+                Ort::Value inputBitrateTensor = Ort::Value::CreateTensor<int64_t>(memoryInfo, bitrateVec.data(), bitrateVec.size(), scalerInputDims.data(), scalerInputDims.size());
+                Ort::Value inputResolutionTensor = Ort::Value::CreateTensor<int64_t>(memoryInfo, resolutionVec.data(), resolutionVec.size(), scalerInputDims.data(), scalerInputDims.size());
+                Ort::Value inputVelocityTensor = Ort::Value::CreateTensor<float>(memoryInfo, velocityVec.data(), velocityVec.size(), scalerInputDims.data(), scalerInputDims.size());
+
+                std::vector<int64_t> outputDims = {1, 5};
+                std::vector<int64_t> fpsOutputDims = {1, 10};
+                size_t outputResTensorSize = 5; // vectorProduct(outputDims);
+                size_t outputFpsTensorSize = 10; // vectorProduct(outputDims);
+                std::vector<float> outputResTensorValues(outputResTensorSize); // output will be loaded into the vector
+                std::vector<float> outputFpsTensorValues(outputFpsTensorSize);
+                Ort::Value outputResTensor = Ort::Value::CreateTensor<float>(memoryInfo, outputResTensorValues.data(), outputResTensorSize, outputDims.data(), outputDims.size());
+                Ort::Value outputFpsTensor = Ort::Value::CreateTensor<float>(memoryInfo, outputFpsTensorValues.data(), outputFpsTensorSize, fpsOutputDims.data(), fpsOutputDims.size());
+
+                auto bindings = Ort::IoBinding::IoBinding(*ortSession);
+                bindings.BindInput(ortSession->GetInputNameAllocated(0, ortAllocator).get(), inputImageTensor);
+                bindings.BindInput(ortSession->GetInputNameAllocated(1, ortAllocator).get(), inputFpsTensor);
+                bindings.BindInput(ortSession->GetInputNameAllocated(2, ortAllocator).get(), inputBitrateTensor);
+                bindings.BindInput(ortSession->GetInputNameAllocated(3, ortAllocator).get(), inputResolutionTensor);
+                bindings.BindInput(ortSession->GetInputNameAllocated(4, ortAllocator).get(), inputVelocityTensor);
+                bindings.BindOutput(ortSession->GetOutputNameAllocated(0, ortAllocator).get(), outputResTensor);
+                bindings.BindOutput(ortSession->GetOutputNameAllocated(1, ortAllocator).get(), outputFpsTensor);
+
+                Ort::RunOptions runOpts;
+                runOpts.SetRunLogVerbosityLevel(1); // 0 = Default, higher values mean more detailed logging
+                ortSession->Run(runOpts, bindings);
+                bindings.SynchronizeOutputs();
+
+                // std::cout << "nn output of fps, res" << " ";
+                // print_vectors(outputFpsTensorValues, outputResTensorValues);
+
+                // Find predictions
+                int res_pred_index = argmax(outputResTensorValues);
+                int fps_pred_index = argmax(outputFpsTensorValues);
+                int predicted_resolution = reverse_res_map[res_pred_index];
+                int predicted_fps = reverse_fps_map[fps_pred_index];
+                std::cout << "fps_preds: " << fps_pred_index << ", predicted_fps: " << predicted_fps << " fps" << std::endl;
+                std::cout << "res_preds: " << res_pred_index << ", predicted_resolution: " << predicted_resolution << "p" << std::endl;
+
+                float maxRes = *std::max_element(outputResTensorValues.begin(), outputResTensorValues.end());
+                for (float& value : outputResTensorValues) {
+                    value /= maxRes;
+                }
+
+                float maxFps = *std::max_element(outputFpsTensorValues.begin(), outputFpsTensorValues.end());
+                for (float& value : outputFpsTensorValues) {
+                    value /= maxFps;
+                }
+
+                // std::cout << "outputResTensorValues, outputFpsTensorValues" << " ";
+                // print_vectors(outputResTensorValues, outputFpsTensorValues);
+
+                // std::cout << "current fps: " << frameRate << ", current resolution: " << mHeight << " fps" << std::endl;
+                saveAsBMP("patchData", fCount_rt, patchData, patchWidth, patchHeight); // C:\Users\15142\new\Falcor\build\windows-vs2022\bin\Debug
+
+                res_probabilities = softmax(outputResTensorValues); // outputResTensorValues is processed
+                fps_probabilities = softmax(outputFpsTensorValues);
+                // std::cout << "res_probabilities, fps_probabilities" << " ";
+                // print_vectors(res_probabilities, fps_probabilities);
+
+                // write to csv the processed probabilities
+                appendRowToCsv(fCount_rt, res_probabilities, fps_probabilities);
+            } else if (vrrON) {
+                getProbabilitiesForFrame(fCount_rt, res_probabilities, fps_probabilities);
+
+                // auto [selected_fps, selected_resolution] = shouldChangeSettings(prevFrameRate, prevmHeight, fps_probabilities, res_probabilities);
+                auto [selected_fps, selected_resolution] = shouldChangeSettings(frameRate, mHeight, fps_probabilities, res_probabilities);
+                prevFrameRate = selected_fps;
+                prevmHeight = selected_resolution;
+                std::cout << "Frame " << fCount_rt << ": Changing settings to " << selected_fps << " FPS, " << selected_resolution << "p" << std::endl;
+
+                if (selected_fps != frameRate)
+                {
+                    std::cout << "Change fps from " << frameRate << " to " << selected_fps << std::endl;
+                    setFrameRate(selected_fps);
+                }
+
+                if (selected_resolution != mHeight)
+                {
+                    std::cout << "Change resolution from " << mHeight << " to " << selected_resolution << std::endl;
+                    setResolution(res_map_by_height[selected_resolution], selected_resolution);
+                }
             }
-
-            int64_t fps = 166;
-            // int64_t bitrate = 500;
-            // int64_t resolution = 1080;
-            // float velocity = 0.5;
-            std::vector<int64_t> fpsVec = {fps};
-            std::vector<int64_t> bitrateVec = {500}; // TODO: change for bitrate you want
-            std::vector<int64_t> resolutionVec = {1080};
-            std::vector<float> velocityVec = {patchVelocity};
-
-            Ort::AllocatorWithDefaultOptions allocator;
-            Ort::MemoryInfo memoryInfo = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
-
-            std::vector<int64_t> inputDims = {1, 3, patchHeight, patchWidth};
-            std::vector<int64_t> scalerInputDims = {1};
-            Ort::Value inputImageTensor = Ort::Value::CreateTensor<float>(memoryInfo, floatData.data(), floatData.size(), inputDims.data(), inputDims.size());
-            Ort::Value inputFpsTensor = Ort::Value::CreateTensor<int64_t>(memoryInfo, fpsVec.data(), fpsVec.size(), scalerInputDims.data(), scalerInputDims.size());
-            Ort::Value inputBitrateTensor = Ort::Value::CreateTensor<int64_t>(memoryInfo, bitrateVec.data(), bitrateVec.size(), scalerInputDims.data(), scalerInputDims.size());
-            Ort::Value inputResolutionTensor = Ort::Value::CreateTensor<int64_t>(memoryInfo, resolutionVec.data(), resolutionVec.size(), scalerInputDims.data(), scalerInputDims.size());
-            Ort::Value inputVelocityTensor = Ort::Value::CreateTensor<float>(memoryInfo, velocityVec.data(), velocityVec.size(), scalerInputDims.data(), scalerInputDims.size());
-
-            std::vector<int64_t> outputDims = {1, 5};
-            std::vector<int64_t> fpsOutputDims = {1, 10};
-            size_t outputResTensorSize = 5; // vectorProduct(outputDims);
-            size_t outputFpsTensorSize = 10; // vectorProduct(outputDims);
-            std::vector<float> outputResTensorValues(outputResTensorSize); // output will be loaded into the vector
-            std::vector<float> outputFpsTensorValues(outputFpsTensorSize);
-            Ort::Value outputResTensor = Ort::Value::CreateTensor<float>(memoryInfo, outputResTensorValues.data(), outputResTensorSize, outputDims.data(), outputDims.size());
-            Ort::Value outputFpsTensor = Ort::Value::CreateTensor<float>(memoryInfo, outputFpsTensorValues.data(), outputFpsTensorSize, fpsOutputDims.data(), fpsOutputDims.size());
-
-            auto bindings = Ort::IoBinding::IoBinding(*ortSession);
-            bindings.BindInput(ortSession->GetInputNameAllocated(0, ortAllocator).get(), inputImageTensor);
-            bindings.BindInput(ortSession->GetInputNameAllocated(1, ortAllocator).get(), inputFpsTensor);
-            bindings.BindInput(ortSession->GetInputNameAllocated(2, ortAllocator).get(), inputBitrateTensor);
-            bindings.BindInput(ortSession->GetInputNameAllocated(3, ortAllocator).get(), inputResolutionTensor);
-            bindings.BindInput(ortSession->GetInputNameAllocated(4, ortAllocator).get(), inputVelocityTensor);
-            bindings.BindOutput(ortSession->GetOutputNameAllocated(0, ortAllocator).get(), outputResTensor);
-            bindings.BindOutput(ortSession->GetOutputNameAllocated(1, ortAllocator).get(), outputFpsTensor);
-
-            Ort::RunOptions runOpts;
-            runOpts.SetRunLogVerbosityLevel(1); // 0 = Default, higher values mean more detailed logging
-            ortSession->Run(runOpts, bindings);
-            bindings.SynchronizeOutputs();
-
-            // std::cout << "nn output of fps, res" << " ";
-            // print_vectors(outputFpsTensorValues, outputResTensorValues);
-
-            // Find predictions
-            int res_pred_index = argmax(outputResTensorValues);
-            int fps_pred_index = argmax(outputFpsTensorValues);
-            int predicted_resolution = reverse_res_map[res_pred_index];
-            int predicted_fps = reverse_fps_map[fps_pred_index];
-
-            float maxRes = *std::max_element(outputResTensorValues.begin(), outputResTensorValues.end());
-            for (float& value : outputResTensorValues) {
-                value /= maxRes;
-            }
-
-            float maxFps = *std::max_element(outputFpsTensorValues.begin(), outputFpsTensorValues.end());
-            for (float& value : outputFpsTensorValues) {
-                value /= maxFps;
-            }
-
-            // std::cout << "outputResTensorValues, outputFpsTensorValues" << " ";
-            // print_vectors(outputResTensorValues, outputFpsTensorValues);
-
-
-            // Print predictions
-            std::cout << "fps_preds: " << fps_pred_index << ", predicted_fps: " << predicted_fps << " fps" << std::endl;
-            std::cout << "res_preds: " << res_pred_index << ", predicted_resolution: " << predicted_resolution << "p" << std::endl;
-            // // std::cout << "current fps: " << frameRate << ", current resolution: " << mHeight << " fps" << std::endl;
-            saveAsBMP("patchData", fCount_rt, patchData, patchWidth, patchHeight); // C:\Users\15142\new\Falcor\build\windows-vs2022\bin\Debug
-
-            std::vector<float> res_probabilities = softmax(outputResTensorValues);
-            std::vector<float> fps_probabilities = softmax(outputFpsTensorValues);
-            // std::cout << "res_probabilities, fps_probabilities" << " ";
-            // print_vectors(res_probabilities, fps_probabilities);
-
-            // appendRowToCsv(fCount_rt, res_probabilities, fps_probabilities);
-            std::vector<float> res_probabilities_csv(5);
-            std::vector<float> fps_probabilities_csv(10);
-            // getProbabilitiesForFrame(fCount_rt, res_probabilities_csv, fps_probabilities_csv);
-
-            auto [selected_fps, selected_resolution] = shouldChangeSettings(prevFrameRate, prevmHeight, fps_probabilities, res_probabilities);
-            prevFrameRate = selected_fps;
-            prevmHeight = selected_resolution;
-            // if (selected_fps != frameRate)
-            // {
-            //     std::cout << "Change fps from " << frameRate << " to " << selected_fps << std::endl;
-            //     setFrameRate(selected_fps);
-            // }
-
-            // if (selected_resolution != mHeight)
-            // {
-            //     std::cout << "Change resolution from " << mHeight << " to " << selected_resolution << std::endl;
-            //     setResolution(res_map_by_height[selected_resolution], selected_resolution);
-            // }
-
-            std::cout << "Frame " << fCount_rt << ": Changing settings to "
-                        << selected_fps << " FPS, " << selected_resolution << "p" << std::endl;
 
             // if (fcount == 100 && false)
             // {
@@ -2579,6 +2584,7 @@ int runMain(int argc, char** argv)
             << std::setw(2) << std::setfill('0') << minute << ".csv";
     // std::string filename = scene + "_" + std::to_string(speedInput) + "_" + std::to_string(month) + std::to_string(bitrate) + "kbps_" + std::to_string(day) + "_min" + std::to_string(minute) + ".txt";
     std::cout << "filename is " << filename.str() << std::endl;
+
     // encodeDecode.seNNOutputPrefix(filename.str());
 
 

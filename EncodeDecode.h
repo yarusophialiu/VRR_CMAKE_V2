@@ -542,6 +542,9 @@ public:
     bool outputEncodedFrames = false;   // output as h264 file to C:\Users\15142\new\Falcor\Source\Samples\EncodeDecode\encodedH264
     bool outputDecodedFrames = false;   // output as bmp file
     bool outputReferenceFrames = false; // output Falcor rendered frames as bmp file
+    bool runONNXModel = false; // if false, change csv file, if true, uncomment encodeDecode.seNNOutputPrefix(filename.str());
+    bool vrrON = false; // if false, change csv file, if true, uncomment encodeDecode.seNNOutputPrefix(filename.str());
+    std::string csvFile = "C:/Users/15142/new/Falcor/Source/Samples/EncodeDecode/nnOutput/suntemple_statue03_1_500kbps_1103_1353.csv"; //lost_empire_1_5000kbps_1030_1945.csv";
     // bool showDecode = true;
 
     uint32_t mSampleIndex = 0xdeadbeef;

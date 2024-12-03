@@ -6,7 +6,7 @@
 # BITRATES=(3500 4000 4500 5000 5500 6000 6500 7000)
 BITRATES=(2000 2500 3000 3500 4000 4500 5000 5500 6000 6500 7000 7500 8000)
 # BITRATES=(2000 2500 3000 3500 4000 4500)
-BITRATES=(500)
+BITRATES=(8000)
 
 FRAMERATE=(30 40 50 60 70 80 90 100 110 120)
 # FRAMERATE=(30)
@@ -30,7 +30,7 @@ speeds=(1)
 
 scenes=("crytek_sponza" "suntemple_statue" "bistro" "room" "lost_empire" "living_room" "suntemple" "sibenik" "bedroom" "gallery")
 # scenes=("bistro" "crytek_sponza" "gallery"  "living_room" "sibenik") # "breakfast_room"
-scenes=("lost_empire")
+scenes=("suntemple_statue")
 
 
 # run this line in git bash
@@ -39,9 +39,11 @@ for sceneval in "${scenes[@]}"; do
  for path in "${paths[@]}"; do
     for seg in "${segs[@]}"; do
       # Construct the key and value
-       scene="${sceneval}_path${path}_seg${seg}"
-       scenepath="${sceneval}/path${path}_seg${seg}.fbx"
-       echo "scene: $scene" "seg: $seg" "scenedict: ${scenedict[$scene]}"
+    #    scene="${sceneval}_path${path}_seg${seg}"
+    #    scenepath="${sceneval}/path${path}_seg${seg}.fbx"
+       scene="suntemple_statue03"
+       scenepath="${sceneval}/suntemple_statue01.fbx"
+    #    echo "scene: $scene" "seg: $seg" "scenedict: ${scenedict[$scene]}"
         for speed in "${speeds[@]}"; do
             echo "speed: $speed"
             for resolution in "${resolutions[@]}"; do
