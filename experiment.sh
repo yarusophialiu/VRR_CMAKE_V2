@@ -6,15 +6,15 @@
 # BITRATES=(3500 4000 4500 5000 5500 6000 6500 7000)
 BITRATES=(2000 2500 3000 3500 4000 4500 5000 5500 6000 6500 7000 7500 8000)
 # BITRATES=(2000 2500 3000 3500 4000 4500)
-BITRATES=(8000)
+BITRATES=(2000)
 
 FRAMERATE=(30 40 50 60 70 80 90 100 110 120)
 # FRAMERATE=(30)
-FRAMERATE=(30)
+FRAMERATE=(60)
 
-# resolutions=("1920x1080" "1536x864" "1280x720" "960x540" "854x480" "640x360") # "1200x676"
+# resolutions=("1920x1080" "1536x864" "1280x720" "960x540" "854x480" "x360") # "1200x676"
 resolutions=("1920x1080" "1536x864" "1280x720" "854x480" "640x360")
-resolutions=("640x360")
+resolutions=("1920x1080")
 
 
 # paths=(1 2 3 4 5)
@@ -41,7 +41,7 @@ for sceneval in "${scenes[@]}"; do
       # Construct the key and value
     #    scene="${sceneval}_path${path}_seg${seg}"
     #    scenepath="${sceneval}/path${path}_seg${seg}.fbx"
-       scene="suntemple_statue03"
+       scene="suntemple_statue01"
        scenepath="${sceneval}/suntemple_statue01.fbx"
     #    echo "scene: $scene" "seg: $seg" "scenedict: ${scenedict[$scene]}"
         for speed in "${speeds[@]}"; do

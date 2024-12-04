@@ -284,6 +284,7 @@ public:
     will change once we incoporate motion vector
     */
     void loadScene(const std::filesystem::path& path, const Fbo* pTargetFbo);
+    void setScene(unsigned int index);
     void setPerFrameVars(const Fbo* pTargetFbo);
     void renderRaster(RenderContext* pRenderContext, const ref<Fbo>& pTargetFbo);
     void renderRT(RenderContext* pRenderContext, const ref<Fbo>& pTargetFbo, int fCount, uint32_t width, uint32_t height);
@@ -485,7 +486,7 @@ public:
     std::map<int, int> reverse_fps_map = {{0, 30}, {1, 40}, {2, 50}, {3, 60}, {4, 70}, {5, 80}, {6, 90}, {7, 100}, {8, 110}, {9, 120}};
     // std::vector<float> p_res = {0,0,0,0,0};
     // std::vector<float> p_fps = {0,0,0,0,0,0,0,0,0,0};
-    std::tuple<int, int> shouldChangeSettings(int currentFps, int currentResolution,  std::vector<float>& fps_probabilities,  std::vector<float>& res_probabilities);
+    std::tuple<int, int, int> shouldChangeSettings(int currentFps, int currentResolution,  std::vector<float>& fps_probabilities,  std::vector<float>& res_probabilities);
     void initializeProbabilities(int currentFps, int currentRes);
 
 
@@ -508,11 +509,15 @@ public:
     uint32_t mHeight;
     uint32_t mOldWidth = 0;
     uint32_t mOldHeight = 0;
+    uint32_t mWidth1920 = 1920;
+    uint32_t mHeight1080 = 1080;
+
 
     uint32_t patchWidth = 128;
     uint32_t patchHeight = 128;
     int mResolutionChange = 0;
 
+    std::vector<ref<Scene>> mpScenes;
     ref<Scene> mpScene;
     ref<Camera> mpCamera;
     std::unique_ptr<CameraController> mpCamCtrl;
@@ -543,8 +548,8 @@ public:
     bool outputDecodedFrames = false;   // output as bmp file
     bool outputReferenceFrames = false; // output Falcor rendered frames as bmp file
     bool runONNXModel = false; // if false, change csv file, if true, uncomment encodeDecode.seNNOutputPrefix(filename.str());
-    bool vrrON = false; // if false, change csv file, if true, uncomment encodeDecode.seNNOutputPrefix(filename.str());
-    std::string csvFile = "C:/Users/15142/new/Falcor/Source/Samples/EncodeDecode/nnOutput/suntemple_statue03_1_500kbps_1103_1353.csv"; //lost_empire_1_5000kbps_1030_1945.csv";
+    bool vrrON = true; // false true
+    std::string csvFile = "C:/Users/15142/new/Falcor/Source/Samples/EncodeDecode/nnOutput/suntemple_statue01_1_2000kbps_1103_1601.csv"; //lost_empire_1_5000kbps_1030_1945.csv";
     // bool showDecode = true;
 
     uint32_t mSampleIndex = 0xdeadbeef;
@@ -583,6 +588,15 @@ public:
     uint32_t frameLimit;
     unsigned int bitRate;
     unsigned int speed;
+    double mTimeSecs = 0.0;
+
+    signed int selectedFps;
+    signed int selectedHeight;
+    signed int selectedWidth;
+    int minResolutionFrameLength = 2;
+    int currentResolutionFrameLength = 0;
+
+
     std::string sceneName;
     // float targetFrameTime; // Time per frame in seconds
     float lastFrameTime = 0.0f; // Time of the last frame render
