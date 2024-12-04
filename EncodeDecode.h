@@ -288,7 +288,7 @@ public:
     void setScene(unsigned int index);
     void setPerFrameVars(const Fbo* pTargetFbo);
     void renderRaster(RenderContext* pRenderContext, const ref<Fbo>& pTargetFbo);
-    void renderRT(RenderContext* pRenderContext, const ref<Fbo>& pTargetFbo, int fCount, uint32_t width, uint32_t height);
+    void renderRT(RenderContext* pRenderContext, const ref<Fbo>& pTargetFbo, uint32_t width, uint32_t height);
     void createMipMaps(RenderContext* pRenderContext);
 
     int getResolutionIndex(int resolution);
@@ -485,13 +485,7 @@ public:
     std::map<int, int> reverse_res_map = {{0, 360}, {1, 480}, {2, 720}, {3, 864}, {4, 1080}};
     std::map<int, int> res_map_by_height = {{360, 640}, {480, 854}, {720, 1280}, {864, 1536}, {1080, 1920}};
     std::map<int, int> reverse_fps_map = {{0, 30}, {1, 40}, {2, 50}, {3, 60}, {4, 70}, {5, 80}, {6, 90}, {7, 100}, {8, 110}, {9, 120}};
-    // std::vector<float> p_res = {0,0,0,0,0};
-    // std::vector<float> p_fps = {0,0,0,0,0,0,0,0,0,0};
     std::tuple<int, int, int> shouldChangeSettings(int currentFps, int currentResolution,  std::vector<float>& fps_probabilities,  std::vector<float>& res_probabilities);
-    void initializeProbabilities(int currentFps, int currentRes);
-
-
-
 
 
         /*
@@ -549,8 +543,9 @@ public:
     bool outputDecodedFrames = false;   // output as bmp file
     bool outputReferenceFrames = false; // output Falcor rendered frames as bmp file
     bool runONNXModel = false; // if false, change csv file, if true, uncomment encodeDecode.seNNOutputPrefix(filename.str());
-    bool vrrON = false; // false true
-    bool recordExperiment = true; // false true
+    bool vrrON = true; // false true, if true, set runONNXModel to false
+    bool recordExperiment = false;
+    // suntemple_statue01_1_2000kbps_1103_1601
     std::string csvFile = "C:/Users/15142/new/Falcor/Source/Samples/EncodeDecode/nnOutput/suntemple_statue01_1_2000kbps_1103_1601.csv"; //lost_empire_1_5000kbps_1030_1945.csv";
     // bool showDecode = true;
 
@@ -569,6 +564,10 @@ public:
     std::vector<int> frameNumbersCSV;
     std::vector<std::vector<float>> resProbabilitiesCSV;
     std::vector<std::vector<float>> fpsProbabilitiesCSV;
+    void runONNXInference(RenderContext* pRenderContext, int startX, int startY, float patchVelocity,
+                          std::vector<float>& outputResTensorValues, std::vector<float>& outputFpsTensorValues);
+    void processNNOutput(std::vector<float>& outputResTensorValues, std::vector<float>& outputFpsTensorValues,
+                         std::vector<float>& res_probabilities, std::vector<float>& fps_probabilities);
     void appendChoiceToCsv();
     void appendRowToCsv(int frameNumber, const std::vector<float>& res_probabilities, const std::vector<float>& fps_probabilities);
     void readCsv(const std::string& filename,
@@ -576,6 +575,11 @@ public:
              std::vector<std::vector<float>>& resProbabilities,
              std::vector<std::vector<float>>& fpsProbabilities);
     bool getProbabilitiesForFrame(int frameNumber, std::vector<float>& resProbabilities, std::vector<float>& fpsProbabilities);
+    void testKeyChange();
+    void changeFpsResolution();
+    float computePatchVelocity(RenderContext* pRenderContext, int startX, int startY);
+
+
 
     const char* refBaseFilePath = "refOutputBMP/";
     const char* decBaseFilePath = "decOutputBMP/";
@@ -587,8 +591,8 @@ public:
     //const int frameRate = 30;
     //const int frameLimit = 10 * frameRate / 30; // 206, 516
 
-    signed int prevFrameRate;
-    signed int prevmHeight;
+    // signed int prevFrameRate;
+    // signed int prevmHeight;
     signed int frameRate;
     uint32_t frameLimit;
     unsigned int bitRate;

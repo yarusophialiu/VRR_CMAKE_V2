@@ -1,10 +1,8 @@
 // EncodeDecode.cpp : This file contains the 'main' function. Program execution begins and ends there.
-//
 #pragma once
 
 #include <filesystem>
 #include <iostream>
-// #include <curl/curl.h>
 #include <d3d12.h>
 #include <d3d11.h>
 #include <dxgi1_4.h>
@@ -211,22 +209,6 @@ std::vector<float> softmax(const std::vector<float>& logits) {
 }
 
 
-// void saveAsImage(const std::string& baseFilename, int count, const std::vector<uint8_t>& patchData, int width, int height) {
-//     // Construct the dynamic filename
-//     std::ostringstream filename;
-//     filename << baseFilename << "_" << count << ".png";
-
-//     // Convert std::vector<uint8_t> to cv::Mat
-//     cv::Mat image(height, width, CV_8UC3, const_cast<uint8_t*>(patchData.data()));
-
-//     // Save the image as a PNG file
-//     if (cv::imwrite(filename.str(), image)) {
-//         std::cout << "Image saved as: " << filename.str() << std::endl;
-//     } else {
-//         std::cerr << "Error: Could not save the image!" << std::endl;
-//     }
-// }
-
 // Function to write predicted streaming results to a file
 void writeToFile(const std::string& filename, int frameNumber, int fps, int resolution) {
     std::ofstream file(filename, std::ios::app);  // Open in append mode
@@ -311,7 +293,6 @@ void saveAsBMP(const std::string& baseFilename, int count, const std::vector<uin
     infoHeader[10] = (height >> 16) & 0xFF;
     infoHeader[11] = (height >> 24) & 0xFF;
 
-    // Open the file for writing
     std::ofstream outFile(filename.str(), std::ios::binary);
     if (!outFile) {
         std::cerr << "Error: Could not open file for writing: " << filename.str() << std::endl;
@@ -328,9 +309,7 @@ void saveAsBMP(const std::string& baseFilename, int count, const std::vector<uin
         outFile.write("\0\0\0", padding); // Write padding bytes
     }
 
-    // Close the file
     outFile.close();
-
     // std::cout << "Image saved to " << filename.str() << std::endl;
 }
 
@@ -370,7 +349,6 @@ int argmax(const std::vector<float>& values) {
 }
 
 
-
 Ort::Session get_session(Ort::Env& env, const std::wstring& model_path, Ort::SessionOptions* sessionOptions) {
     try {
         // Initialize the session with a wide string path
@@ -403,95 +381,6 @@ std::string base64_encode_patch(const std::vector<uint8_t>& patchData) {
     return cppcodec::base64_rfc4648::encode(patchData);
 }
 
-// // Function to asynchronously send patch and velocity to the HTTP server
-// // const std::vector<std::vector<float>>& patch
-// void send_http_request_async(const std::vector<uint8_t>& patchData, float velocity) {
-//     std::thread([patchData, velocity]() {
-//         auto start = std::chrono::high_resolution_clock::now();
-
-//         CURLM* multi_handle;
-//         CURL* easy_handle;
-//         // When still_running becomes 0, it means all HTTP requests have completed, and you can proceed with any post-processing steps or cleanup.
-//         int still_running = 0; // Number of active transfers
-
-//         // Create a JSON object with patch and velocity
-//         nlohmann::json j;
-//         // Base64 encode the patch data and add to the JSON
-//         std::string encodedPatch = base64_encode_patch(patchData);
-//         j["patch"] = encodedPatch;
-//         j["velocity"] = velocity;
-
-//         // Convert JSON to string
-//         std::string json_str = j.dump();
-//         // Initialize curl easy and multi handles
-//         easy_handle = curl_easy_init();
-//         multi_handle = curl_multi_init();
-
-//         if (easy_handle && multi_handle) {
-//             // Set URL and POST data
-//             std::string postFields = "shared_memory_key=PatchData";
-//             curl_easy_setopt(easy_handle, CURLOPT_URL, "http://localhost:8000/predict");
-//             // curl_easy_setopt(easy_handle, CURLOPT_POSTFIELDS, json_str.c_str());
-//             curl_easy_setopt(easy_handle, CURLOPT_POSTFIELDS, postFields.c_str());
-
-//             // Set HTTP headers
-//             struct curl_slist* headers = NULL;
-//             headers = curl_slist_append(headers, "Content-Type: application/json");
-//             curl_easy_setopt(easy_handle, CURLOPT_HTTPHEADER, headers);
-//             curl_multi_add_handle(multi_handle, easy_handle); // Add easy handle to multi handle
-
-//             auto now = std::chrono::system_clock::now();
-//             std::time_t currentTime = std::chrono::system_clock::to_time_t(now); // getting calendar time
-//             std::tm* localTime = std::localtime(&currentTime);
-//             std::cout << "Current local time: " << std::put_time(localTime, "%Y-%m-%d %H:%M:%S") << std::endl;
-//             auto stop1 = std::chrono::high_resolution_clock::now();
-//             std::chrono::duration<double> elapsed_seconds_stop0 = stop1 - start;
-//             std::cout << "Before send patch takes: " << elapsed_seconds_stop0.count() << " seconds\n";
-
-//             CURLMcode mc = curl_multi_perform(multi_handle, &still_running); // Perform the request asynchronously
-//             if (mc != CURLM_OK) {
-//                 std::cerr << "curl_multi_perform() failed: " << curl_multi_strerror(mc) << std::endl;
-//                 // break;
-//             }
-
-
-//             // Polling loop to check the status of the request
-//             while (still_running) {
-//                 int numfds;
-//                 curl_multi_wait(multi_handle, NULL, 0, 1000, &numfds);  // Wait for data/events
-//                 curl_multi_perform(multi_handle, &still_running);       // Perform any outstanding transfers
-//             }
-
-//             auto end = std::chrono::high_resolution_clock::now();
-//             std::chrono::duration<double> elapsed_seconds_stop1 = end - stop1;
-//             std::chrono::duration<double> elapsed_seconds = end - start;
-//             std::cout << "Request round trip: " << elapsed_seconds_stop1.count() << " seconds\n";
-//             std::cout << "Request completed in: " << elapsed_seconds.count() << " seconds\n";
-
-//             curl_multi_remove_handle(multi_handle, easy_handle);
-//             curl_easy_cleanup(easy_handle);
-//             curl_multi_cleanup(multi_handle);
-//         }
-//     }).detach(); // Detach the thread to run independently
-// }
-
-
-// void send_patch_if_needed() {
-//     std::cout << "enter: send_patch_if_needed  " << "\n";
-//     auto current_time = std::chrono::steady_clock::now();
-//     std::chrono::duration<double> time_elapsed = current_time - last_send_time;
-//     std::cout << "time_elapsed  " << time_elapsed.count() << "\n";
-
-//     if (time_elapsed.count() >= 5.0) {
-//         // Capture patch and velocity and send to the server
-//         // std::vector<std::vector<float>> patch = capture_patch();  // Example capture function
-//         float velocity = 0.75;  // Example velocity calculation
-//         send_http_request_async(velocity);
-
-//         // Update the last_send_time
-//         last_send_time = current_time;
-//     }
-// }
 
 
 // static const Falcor::float4 kClearColor(0.38f, 0.52f, 0.10f, 1);
@@ -615,23 +504,6 @@ void EncodeDecode::onLoad(RenderContext* pRenderContext)
     // read from csv files
     readCsv(csvFile, frameNumbersCSV, resProbabilitiesCSV, fpsProbabilitiesCSV);
 }
-
-
-// // Function to initialize probabilities
-// void EncodeDecode::initializeProbabilities(int currentFps, int currentRes) {
-//     for (size_t i = 0; i < 10; ++i) {
-//         if (reverse_fps_map[i] == currentFps) {
-//             p_fps[i] = 1.0f;
-//         }
-//     }
-
-//     for (size_t i = 0; i < 5; ++i) {
-//         if (reverse_res_map[i] == mHeight) {
-//             p_res[i] = 1.0f;
-//         }
-//     }
-// }
-
 
 /*resize window changes the size of presenter of the decoded frame*/
 void EncodeDecode::onResize(uint32_t width, uint32_t height)
@@ -845,12 +717,157 @@ void EncodeDecode::appendRowToCsv(int frameNumber,
     file.close();
 }
 
+
+void EncodeDecode::testKeyChange()
+{
+    if (mResolutionChange == -1)
+    {
+        //setFrameRate(10);
+        setResolution(854, 480);
+        mResolutionChange = 0;
+    } else if (mResolutionChange == 1) {
+
+        setResolution(1920, 1080);
+        mResolutionChange = 0;
+    } else if (mResolutionChange == -2) {
+
+        setResolution(640, 360);
+        mResolutionChange = 0;
+    }
+}
+
+
+void EncodeDecode::changeFpsResolution()
+{
+    if (selectedFps != frameRate)
+    {
+        setFrameRate(selectedFps);
+    }
+
+    if (selectedHeight != mHeight && currentResolutionFrameLength >= minResolutionFrameLength)
+    {
+        setResolution(selectedWidth, selectedHeight);
+        currentResolutionFrameLength = 0;
+    }
+    std::cout << "Changing settings to " << selectedFps << " FPS, " << selectedHeight << "p" << std::endl;
+}
+
+
+float EncodeDecode::computePatchVelocity(RenderContext* pRenderContext, int startX, int startY)
+{
+    auto rootVar = mpComputeVelocityPass->getRootVar();
+    rootVar["gInputImage"] = mpRenderGraph->getOutput("GBuffer.mvec")->asTexture();
+    rootVar["gOutputVelocity"] = mpVelocity;
+    auto globalVar = rootVar["PerFrameCB"];
+    globalVar["gPatchOffset"] = Falcor::uint2(startX, startY); // top left coordinate of patch
+    mpComputeVelocityPass->execute(pRenderContext, Falcor::uint3(1u, 1u, 1u));
+
+    pRenderContext->submit();
+    float patchVelocity = mpVelocity->getElements<float>(0, 1).at(0) * (frameRate / 166.0f); // compute motion velocity in pixel per degree in terms of fps166
+    std::cout << "mpVelocity: " << patchVelocity << "\n"; // starting index, the number of elements
+    std::cout << "frameRate, " << frameRate << ", resolution " << mHeight << "\n"; // starting index, the number of elements
+    return patchVelocity;
+}
+
+
+void EncodeDecode::runONNXInference(RenderContext* pRenderContext, int startX, int startY, float patchVelocity,
+                                    std::vector<float>& outputResTensorValues, std::vector<float>& outputFpsTensorValues)
+{
+    ref<Texture> frameTexture = mpRenderGraph->getOutput("TAA.colorOut")->asTexture(); // GBuffer.mvec
+    std::vector<uint8_t> renderedFrameVal = pRenderContext->readTextureSubresource(frameTexture.get(), 0);
+    std::vector<uint8_t> patchData(patchWidth * patchHeight * 3);
+    uint32_t frameWidth = frameTexture->getWidth();
+    uint32_t frameHeight = frameTexture->getHeight();
+    // renderedFrameVal has 4 channels, patch has 3 channels
+    extract_patch_from_frame(renderedFrameVal, frameWidth, frameHeight, startX, startY, patchData);
+
+    std::vector<float> floatData(patchData.size()); // how many channels? 49152 = 128x128x3
+
+    // Normalize each uint8_t to a float in the range [0, 1]
+    for (size_t i = 0; i < patchData.size(); ++i) {
+        floatData[i] = static_cast<float>(patchData[i]) / 255.0f;
+    }
+
+    int64_t fps = 166;
+    // int64_t bitrate = 500;
+    std::vector<int64_t> fpsVec = {fps};
+    std::vector<int64_t> bitrateVec = {2000}; // TODO: change for bitrate you want
+    std::vector<int64_t> resolutionVec = {1080};
+    std::vector<float> velocityVec = {patchVelocity};
+
+    Ort::AllocatorWithDefaultOptions allocator;
+    Ort::MemoryInfo memoryInfo = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
+
+    std::vector<int64_t> inputDims = {1, 3, patchHeight, patchWidth};
+    std::vector<int64_t> scalerInputDims = {1};
+    Ort::Value inputImageTensor = Ort::Value::CreateTensor<float>(memoryInfo, floatData.data(), floatData.size(), inputDims.data(), inputDims.size());
+    Ort::Value inputFpsTensor = Ort::Value::CreateTensor<int64_t>(memoryInfo, fpsVec.data(), fpsVec.size(), scalerInputDims.data(), scalerInputDims.size());
+    Ort::Value inputBitrateTensor = Ort::Value::CreateTensor<int64_t>(memoryInfo, bitrateVec.data(), bitrateVec.size(), scalerInputDims.data(), scalerInputDims.size());
+    Ort::Value inputResolutionTensor = Ort::Value::CreateTensor<int64_t>(memoryInfo, resolutionVec.data(), resolutionVec.size(), scalerInputDims.data(), scalerInputDims.size());
+    Ort::Value inputVelocityTensor = Ort::Value::CreateTensor<float>(memoryInfo, velocityVec.data(), velocityVec.size(), scalerInputDims.data(), scalerInputDims.size());
+
+    std::vector<int64_t> outputDims = {1, 5};
+    std::vector<int64_t> fpsOutputDims = {1, 10};
+    size_t outputResTensorSize = 5; // vectorProduct(outputDims);
+    size_t outputFpsTensorSize = 10; // vectorProduct(outputDims);
+
+    Ort::Value outputResTensor = Ort::Value::CreateTensor<float>(memoryInfo, outputResTensorValues.data(), outputResTensorSize, outputDims.data(), outputDims.size());
+    Ort::Value outputFpsTensor = Ort::Value::CreateTensor<float>(memoryInfo, outputFpsTensorValues.data(), outputFpsTensorSize, fpsOutputDims.data(), fpsOutputDims.size());
+
+    auto bindings = Ort::IoBinding::IoBinding(*ortSession);
+    bindings.BindInput(ortSession->GetInputNameAllocated(0, ortAllocator).get(), inputImageTensor);
+    bindings.BindInput(ortSession->GetInputNameAllocated(1, ortAllocator).get(), inputFpsTensor);
+    bindings.BindInput(ortSession->GetInputNameAllocated(2, ortAllocator).get(), inputBitrateTensor);
+    bindings.BindInput(ortSession->GetInputNameAllocated(3, ortAllocator).get(), inputResolutionTensor);
+    bindings.BindInput(ortSession->GetInputNameAllocated(4, ortAllocator).get(), inputVelocityTensor);
+    bindings.BindOutput(ortSession->GetOutputNameAllocated(0, ortAllocator).get(), outputResTensor);
+    bindings.BindOutput(ortSession->GetOutputNameAllocated(1, ortAllocator).get(), outputFpsTensor);
+
+    Ort::RunOptions runOpts;
+    runOpts.SetRunLogVerbosityLevel(1); // 0 = Default, higher values mean more detailed logging
+    ortSession->Run(runOpts, bindings);
+    bindings.SynchronizeOutputs();
+}
+
+// normalize outputtensors, then apply softmax
+void EncodeDecode::processNNOutput(std::vector<float>& outputResTensorValues,
+                                    std::vector<float>& outputFpsTensorValues,
+                                    std::vector<float>& res_probabilities,
+                                    std::vector<float>& fps_probabilities)
+{
+    // Find predictions
+    int res_pred_index = argmax(outputResTensorValues);
+    int fps_pred_index = argmax(outputFpsTensorValues);
+    int predicted_resolution = reverse_res_map[res_pred_index];
+    int predicted_fps = reverse_fps_map[fps_pred_index];
+    std::cout << "fps_preds: " << fps_pred_index << ", predicted_fps: " << predicted_fps << " fps" << std::endl;
+    std::cout << "res_preds: " << res_pred_index << ", predicted_resolution: " << predicted_resolution << "p" << std::endl;
+
+    float maxRes = *std::max_element(outputResTensorValues.begin(), outputResTensorValues.end());
+    for (float& value : outputResTensorValues) {
+        value /= maxRes;
+    }
+
+    float maxFps = *std::max_element(outputFpsTensorValues.begin(), outputFpsTensorValues.end());
+    for (float& value : outputFpsTensorValues) {
+        value /= maxFps;
+    }
+
+    // // std::cout << "current fps: " << frameRate << ", current resolution: " << mHeight << " fps" << std::endl;
+    // saveAsBMP("patchData", fCount_rt, patchData, patchWidth, patchHeight); // C:\Users\15142\new\Falcor\build\windows-vs2022\bin\Debug
+
+    res_probabilities = softmax(outputResTensorValues); // outputResTensorValues is processed
+    fps_probabilities = softmax(outputFpsTensorValues);
+    // std::cout << "res_probabilities, fps_probabilities" << " ";
+    // print_vectors(res_probabilities, fps_probabilities);
+}
+
+
 // called in sampleapp renderframe()
 void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& pTargetFbo)
 {
     double startTime = 0.0;
     startTime = getCurrentTime(); // Capture the start time
-
     pRenderContext->clearFbo(pTargetFbo.get(), kClearColor, 1.0f, 0, FboAttachmentType::All);
 
     if (mpScene)
@@ -861,7 +878,6 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
         if (is_set(updates, Scene::UpdateFlags::RecompileNeeded))
             FALCOR_THROW("This sample does not support scene changes that require shader recompilation.");
 
-        static uint32_t fcount = 0;
         static int fCount_rt = 0;
 
         mpRenderGraph->execute(mpRenderContextDecode); // mpRenderContextDecode pRenderContext
@@ -870,8 +886,7 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
 
         InterlockedIncrement(&mNDecodeFenceVal);
         if (mRayTrace)
-            renderRT(mpRenderContextDecode, pTargetFbo, fcount, mWidth1920, mHeight1080); // mpRenderContextDecode pRenderContext
-            // renderRT(mpRenderContextDecode, pTargetFbo, fcount, mWidth, mHeight); // mpRenderContextDecode pRenderContext
+            renderRT(mpRenderContextDecode, pTargetFbo, mWidth1920, mHeight1080); // mpRenderContextDecode pRenderContext
         else
             renderRaster(pRenderContext, pTargetFbo);
 
@@ -910,7 +925,6 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
 
             double endTime = 0.0;
             endTime = getCurrentTime();
-
             float elapsedTime = endTime - startTime; // Time since last frame
             // std::cout << "elapsedTime: " << elapsedTime << "\n";
 
@@ -922,175 +936,34 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
                 std::this_thread::sleep_for(std::chrono::duration<float>(sleepTime));
             }
 
-        //    if (outputDecodedFrames)
-        //     {
-        //         snprintf(szDecOutFilePath, sizeof(szDecOutFilePath), "%s%d.bmp", decBaseFilePath, fcount);
-        //         writeBMP(szDecOutFilePath, mPHostRGBAFrame, mWidth, mHeight);
-        //     }
-
-            if (mResolutionChange == -1)
+           if (outputDecodedFrames)
             {
-                //setFrameRate(10);
-                setResolution(854, 480);
-                mResolutionChange = 0;
-            } else if (mResolutionChange == 1) {
-
-                setResolution(1920, 1080);
-                mResolutionChange = 0;
-            } else if (mResolutionChange == -2) {
-
-                setResolution(640, 360);
-                mResolutionChange = 0;
+                snprintf(szDecOutFilePath, sizeof(szDecOutFilePath), "%s%d.bmp", decBaseFilePath, fCount_rt);
+                writeBMP(szDecOutFilePath, mPHostRGBAFrame, mWidth, mHeight);
             }
 
-
+            // void testKeyChange();
             std::cout << "Frame " << fCount_rt << ": Changing settings to " << selectedFps << " FPS, " << selectedHeight << "p" << std::endl;
+            void changeFpsResolution();
 
-            if (selectedFps != frameRate)
-            {
-                //std::cout << "Change fps from " << frameRate << " to " << selectedFps << std::endl;
-                setFrameRate(selectedFps);
-            }
-
-            if (selectedHeight != mHeight && currentResolutionFrameLength >= minResolutionFrameLength)
-            {
-                //std::cout << "Change resolution from " << mHeight << " to " << selectedHeight << std::endl;
-                // setResolution(res_map_by_height[selectedHeight], selectedHeight);
-                setResolution(selectedWidth, selectedHeight);
-                currentResolutionFrameLength = 0;
-
-            }
-
-            // Falcor::uint4 srcRect = {0u, 0u, (unsigned int)patchWidth, (unsigned int)patchHeight};
-            // pRenderContext->blit(mpRenderGraph->getOutput("TAA.colorOut")->asTexture()->getSRV(), mpPatchTexture->asTexture()->getRTV(), srcRect);
-
-            // ref<Texture> is a handle of pixel values on gpu
-
-            // read from csv
             std::vector<float> res_probabilities(5);
             std::vector<float> fps_probabilities(10);
-            // std::vector<float> res_probabilities_csv(5);
-            // std::vector<float> fps_probabilities_csv(10);
 
             auto [startX, startY] = getRandomStartCoordinates(mWidth1920, mHeight1080, 128, 128);
-            // auto [startX, startY] = getRandomStartCoordinates(mWidth, mHeight, 128, 128);
-            // auto startX = 10;
-            // auto startY = 10;
-            auto rootVar = mpComputeVelocityPass->getRootVar();
-            rootVar["gInputImage"] = mpRenderGraph->getOutput("GBuffer.mvec")->asTexture();
-            rootVar["gOutputVelocity"] = mpVelocity;
-            auto globalVar = rootVar["PerFrameCB"];
-            globalVar["gPatchOffset"] = Falcor::uint2(startX, startY); // top left coordinate of patch
-            mpComputeVelocityPass->execute(pRenderContext, Falcor::uint3(1u, 1u, 1u));
-
-            pRenderContext->submit();
-            float patchVelocity = mpVelocity->getElements<float>(0, 1).at(0) * (frameRate / 166.0f); // compute motion velocity in pixel per degree in terms of fps166
-            std::cout << "mpVelocity: " << patchVelocity << "\n"; // starting index, the number of elements
             std::cout << "frameRate, " << frameRate << ", resolution " << mHeight << "\n"; // starting index, the number of elements
+            float patchVelocity = computePatchVelocity(pRenderContext, startX, startY);
 
             if (runONNXModel)
             {
-                ref<Texture> frameTexture = mpRenderGraph->getOutput("TAA.colorOut")->asTexture(); // GBuffer.mvec
-                std::vector<uint8_t> renderedFrameVal = pRenderContext->readTextureSubresource(frameTexture.get(), 0);
-                std::vector<uint8_t> patchData(patchWidth * patchHeight * 3);
-                uint32_t frameWidth = frameTexture->getWidth();
-                uint32_t frameHeight = frameTexture->getHeight();
-                // renderedFrameVal has 4 channels, patch has 3 channels
-                extract_patch_from_frame(renderedFrameVal, frameWidth, frameHeight, startX, startY, patchData);
-
-                std::vector<float> floatData(patchData.size()); // how many channels? 49152 = 128x128x3
-
-                // Normalize each uint8_t to a float in the range [0, 1]
-                for (size_t i = 0; i < patchData.size(); ++i) {
-                    floatData[i] = static_cast<float>(patchData[i]) / 255.0f;
-                }
-
-                int64_t fps = 166;
-                // int64_t bitrate = 500;
-                std::vector<int64_t> fpsVec = {fps};
-                std::vector<int64_t> bitrateVec = {2000}; // TODO: change for bitrate you want
-                std::vector<int64_t> resolutionVec = {1080};
-                std::vector<float> velocityVec = {patchVelocity};
-
-                Ort::AllocatorWithDefaultOptions allocator;
-                Ort::MemoryInfo memoryInfo = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
-
-                std::vector<int64_t> inputDims = {1, 3, patchHeight, patchWidth};
-                std::vector<int64_t> scalerInputDims = {1};
-                Ort::Value inputImageTensor = Ort::Value::CreateTensor<float>(memoryInfo, floatData.data(), floatData.size(), inputDims.data(), inputDims.size());
-                Ort::Value inputFpsTensor = Ort::Value::CreateTensor<int64_t>(memoryInfo, fpsVec.data(), fpsVec.size(), scalerInputDims.data(), scalerInputDims.size());
-                Ort::Value inputBitrateTensor = Ort::Value::CreateTensor<int64_t>(memoryInfo, bitrateVec.data(), bitrateVec.size(), scalerInputDims.data(), scalerInputDims.size());
-                Ort::Value inputResolutionTensor = Ort::Value::CreateTensor<int64_t>(memoryInfo, resolutionVec.data(), resolutionVec.size(), scalerInputDims.data(), scalerInputDims.size());
-                Ort::Value inputVelocityTensor = Ort::Value::CreateTensor<float>(memoryInfo, velocityVec.data(), velocityVec.size(), scalerInputDims.data(), scalerInputDims.size());
-
-                std::vector<int64_t> outputDims = {1, 5};
-                std::vector<int64_t> fpsOutputDims = {1, 10};
-                size_t outputResTensorSize = 5; // vectorProduct(outputDims);
-                size_t outputFpsTensorSize = 10; // vectorProduct(outputDims);
-                std::vector<float> outputResTensorValues(outputResTensorSize); // output will be loaded into the vector
-                std::vector<float> outputFpsTensorValues(outputFpsTensorSize);
-                Ort::Value outputResTensor = Ort::Value::CreateTensor<float>(memoryInfo, outputResTensorValues.data(), outputResTensorSize, outputDims.data(), outputDims.size());
-                Ort::Value outputFpsTensor = Ort::Value::CreateTensor<float>(memoryInfo, outputFpsTensorValues.data(), outputFpsTensorSize, fpsOutputDims.data(), fpsOutputDims.size());
-
-                auto bindings = Ort::IoBinding::IoBinding(*ortSession);
-                bindings.BindInput(ortSession->GetInputNameAllocated(0, ortAllocator).get(), inputImageTensor);
-                bindings.BindInput(ortSession->GetInputNameAllocated(1, ortAllocator).get(), inputFpsTensor);
-                bindings.BindInput(ortSession->GetInputNameAllocated(2, ortAllocator).get(), inputBitrateTensor);
-                bindings.BindInput(ortSession->GetInputNameAllocated(3, ortAllocator).get(), inputResolutionTensor);
-                bindings.BindInput(ortSession->GetInputNameAllocated(4, ortAllocator).get(), inputVelocityTensor);
-                bindings.BindOutput(ortSession->GetOutputNameAllocated(0, ortAllocator).get(), outputResTensor);
-                bindings.BindOutput(ortSession->GetOutputNameAllocated(1, ortAllocator).get(), outputFpsTensor);
-
-                Ort::RunOptions runOpts;
-                runOpts.SetRunLogVerbosityLevel(1); // 0 = Default, higher values mean more detailed logging
-                ortSession->Run(runOpts, bindings);
-                bindings.SynchronizeOutputs();
-
-                // std::cout << "nn output of fps, res" << " ";
-                // print_vectors(outputFpsTensorValues, outputResTensorValues);
-
-                // Find predictions
-                int res_pred_index = argmax(outputResTensorValues);
-                int fps_pred_index = argmax(outputFpsTensorValues);
-                int predicted_resolution = reverse_res_map[res_pred_index];
-                int predicted_fps = reverse_fps_map[fps_pred_index];
-                std::cout << "fps_preds: " << fps_pred_index << ", predicted_fps: " << predicted_fps << " fps" << std::endl;
-                std::cout << "res_preds: " << res_pred_index << ", predicted_resolution: " << predicted_resolution << "p" << std::endl;
-
-                float maxRes = *std::max_element(outputResTensorValues.begin(), outputResTensorValues.end());
-                for (float& value : outputResTensorValues) {
-                    value /= maxRes;
-                }
-
-                float maxFps = *std::max_element(outputFpsTensorValues.begin(), outputFpsTensorValues.end());
-                for (float& value : outputFpsTensorValues) {
-                    value /= maxFps;
-                }
-
-                // std::cout << "outputResTensorValues, outputFpsTensorValues" << " ";
-                // print_vectors(outputResTensorValues, outputFpsTensorValues);
-
-                // // std::cout << "current fps: " << frameRate << ", current resolution: " << mHeight << " fps" << std::endl;
-                // saveAsBMP("patchData", fCount_rt, patchData, patchWidth, patchHeight); // C:\Users\15142\new\Falcor\build\windows-vs2022\bin\Debug
-
-                res_probabilities = softmax(outputResTensorValues); // outputResTensorValues is processed
-                fps_probabilities = softmax(outputFpsTensorValues);
-                // std::cout << "res_probabilities, fps_probabilities" << " ";
-                // print_vectors(res_probabilities, fps_probabilities);
-
-                // write to csv the processed probabilities
-                appendRowToCsv(fCount_rt, res_probabilities, fps_probabilities);
+                std::vector<float> outputResTensorValues(5); // output will be loaded into the vector
+                std::vector<float> outputFpsTensorValues(10);
+                runONNXInference(pRenderContext, startX, startY, patchVelocity, outputResTensorValues, outputFpsTensorValues);
+                processNNOutput(outputResTensorValues, outputFpsTensorValues, res_probabilities, fps_probabilities);
+                appendRowToCsv(fCount_rt, res_probabilities, fps_probabilities); // write to csv the processed probabilities
             } else if (vrrON) {
                 getProbabilitiesForFrame(fCount_rt, res_probabilities, fps_probabilities);
-
-                // auto [selected_fps, selected_resolution] = shouldChangeSettings(prevFrameRate, prevmHeight, fps_probabilities, res_probabilities);
-                // auto [selected_fps, selected_resolution] = shouldChangeSettings(frameRate, mHeight, fps_probabilities, res_probabilities);
                 std::tie(selectedFps, selectedWidth, selectedHeight) = shouldChangeSettings(frameRate, mHeight, fps_probabilities, res_probabilities);
-                // prevFrameRate = selected_fps;
-                // prevmHeight = selected_resolution;
             }
-
-
 
             // if (frameLimit > 0 && fcount >= frameLimit)
             // {
@@ -1098,8 +971,6 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
             // }
         }
         fCount_rt += 1;
-        ++fcount;
-        // std::cout << "fcount " << fcount << "\n";
         mTimeSecs += 1.0 / frameRate;
     }
 
@@ -1827,22 +1698,17 @@ NVENCSTATUS EncodeDecode::encodeFrameBuffer()
 
     // std::cout << "Endcoding dimensions: " << mWidth << "x" << mHeight << "\n";
 
-    static int fCount = 0;
     waitForCompletionEvent(bufferIndex); // wait for nvEncEncodePicture to finish
 
     // write encoded frames to out_.h264
     if (outputEncodedFrames)
     {
-
         {
-            // std::cout << "fCount inside: " << fCount++ << std::endl;
             // std::cout << "frameLimit: " << frameLimit << std::endl;
             // std::cout << "write encoded h264 to: " << szOutFilePath << std::endl;
             fpEncOut->write(reinterpret_cast<char*>(mVEncodeOutData.data()), mVEncodeOutData.size());
         }
     }
-    // fCount += 1;
-    // std::cout << "fCount: " << fCount << std::endl;
 
     // clear the previous encoded frame
     mVEncodeOutData.clear();
@@ -2139,10 +2005,8 @@ int EncodeDecode::handlePictureDecode(CUVIDPICPARAMS* pPicParams)
     // pRenderContext->updateTextureData(mDecodedFrame, mPHostRGBAFrame);
     mDecodedFrame = mPHostRGBAFrame;
 
-    // static int fcount = 0;
     // snprintf(szDecOutFilePath, sizeof(szDecOutFilePath), "%s%d.bmp", decBaseFilePath, fcount);
     // writeBMP(szDecOutFilePath, mDecodedFrame, 1920, 1080);
-    // ++fcount;
 
     // presenterPtr->PresentDeviceFrame((uint8_t*)mPDecoderRGBAFrame, mWidth * 4, 0);
     // }
@@ -2324,7 +2188,7 @@ void EncodeDecode::setBitRate(unsigned int br)
 void EncodeDecode::setFrameRate(unsigned int fps)
 {
     frameRate = fps; // Assign the private member
-    prevFrameRate = fps; // Assign the private member
+    // prevFrameRate = fps; // Assign the private member
     frameLimit = frameRate + numOfFrames * frameRate / 30.0; // 68, 34, 45, 30
     targetFrameTime = 1.0f / frameRate;
     // last_send_time = std::chrono::steady_clock::now();
@@ -2434,7 +2298,7 @@ void EncodeDecode::createMipMaps(RenderContext* pRenderContext)
 }
 
 
-void EncodeDecode::renderRT(RenderContext* pRenderContext, const ref<Fbo>& pTargetFbo, int fCount, uint32_t width, uint32_t height)
+void EncodeDecode::renderRT(RenderContext* pRenderContext, const ref<Fbo>& pTargetFbo, uint32_t width, uint32_t height)
 {
     FALCOR_ASSERT(mpScene);
     FALCOR_PROFILE(pRenderContext, "renderRT");
