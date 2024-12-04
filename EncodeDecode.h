@@ -116,7 +116,8 @@ public:
     void setRefPrefix(std::string scene, unsigned int Input);
     void setMotionPrefix(std::string scene, unsigned int Input, unsigned int framerate, unsigned int bitrate, unsigned int height);
     void setDefaultScene(std::string scenePath);
-    void seNNOutputPrefix(std::string time);
+    void setNNOutputPrefix(std::string time);
+    void setExperimentCSVPrefix(std::string time);
 
 
 
@@ -548,7 +549,8 @@ public:
     bool outputDecodedFrames = false;   // output as bmp file
     bool outputReferenceFrames = false; // output Falcor rendered frames as bmp file
     bool runONNXModel = false; // if false, change csv file, if true, uncomment encodeDecode.seNNOutputPrefix(filename.str());
-    bool vrrON = true; // false true
+    bool vrrON = false; // false true
+    bool recordExperiment = true; // false true
     std::string csvFile = "C:/Users/15142/new/Falcor/Source/Samples/EncodeDecode/nnOutput/suntemple_statue01_1_2000kbps_1103_1601.csv"; //lost_empire_1_5000kbps_1030_1945.csv";
     // bool showDecode = true;
 
@@ -557,14 +559,17 @@ public:
     char szRefPrefixFilePath[256] = "encodedH264/";
     char szMotionPrefixFilePath[256] = "motion/";
     char szNNOutputPrefixFilePath[256] = "nnOutput/";
+    char szExperimentPrefixFilePath[256] = "experimentResult/";
     char szOutFilePath[256] = "";
     char szRefOutFilePath[256];
     char szDecOutFilePath[256];
     std::string nnOutputFilename = "";
+    std::string experimentFilename = "";
 
     std::vector<int> frameNumbersCSV;
     std::vector<std::vector<float>> resProbabilitiesCSV;
     std::vector<std::vector<float>> fpsProbabilitiesCSV;
+    void appendChoiceToCsv();
     void appendRowToCsv(int frameNumber, const std::vector<float>& res_probabilities, const std::vector<float>& fps_probabilities);
     void readCsv(const std::string& filename,
              std::vector<int>& frameNumbers,
@@ -589,6 +594,7 @@ public:
     unsigned int bitRate;
     unsigned int speed;
     double mTimeSecs = 0.0;
+    int currentSceneIdx = 0;
 
     signed int selectedFps;
     signed int selectedHeight;
