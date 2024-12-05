@@ -464,8 +464,10 @@ void EncodeDecode::onLoad(RenderContext* pRenderContext)
     std::cout << "load scene: " << std::endl;
 
     // readFrameData("C:/Users/15142/new/Falcor/Source/Samples/EncodeDecode/nn_results.txt");
-    loadScene(kDefaultScene, getTargetFbo().get());
-    setScene(1);
+    // loadScene(kDefaultScene, getTargetFbo().get());
+    loadAllScenes(scenePaths, getTargetFbo().get());
+
+    setScene(0);
 
     Properties gBufferProps = {};
     Properties fXAAProps = {};
@@ -789,9 +791,8 @@ void EncodeDecode::runONNXInference(RenderContext* pRenderContext, int startX, i
     }
 
     int64_t fps = 166;
-    // int64_t bitrate = 500;
     std::vector<int64_t> fpsVec = {fps};
-    std::vector<int64_t> bitrateVec = {2000}; // TODO: change for bitrate you want
+    std::vector<int64_t> bitrateVec = {targetBitrate}; // TODO: change for bitrate you want
     std::vector<int64_t> resolutionVec = {1080};
     std::vector<float> velocityVec = {patchVelocity};
 
@@ -1029,15 +1030,16 @@ bool EncodeDecode::onKeyEvent(const KeyboardEvent& keyEvent)
     else if (keyEvent.key == Falcor::Input::Key::Space) {
         //Record choice here experimentFilename
         appendChoiceToCsv();
+        mTimeSecs = 0;
     }
     else if (keyEvent.key == Falcor::Input::Key::Left) {
 
         setScene(0);
-        mTimeSecs = 0;
+        // mTimeSecs = 0;
     } else if (keyEvent.key == Falcor::Input::Key::Right) {
 
         setScene(1);
-        mTimeSecs = 0;
+        // mTimeSecs = 0;
     }
     // record left and right, write to a csv file
 
@@ -2084,15 +2086,22 @@ void EncodeDecode::initDirectML()
     ortSession = new Ort::Session(*env, modelPath.wstring().c_str(), *sessionOptions);
 }
 
-
+// load all scenes for experiment
 void EncodeDecode::loadScene(const std::filesystem::path& path, const Fbo* pTargetFbo)
 {
 
     mpScenes.push_back(Scene::create(getDevice(), path));
-    mpScenes.push_back(Scene::create(getDevice(), "suntemple_statue/suntemple_statue03.fbx"));
+    std::cout << "path " << path << std::endl;
+    // mpScenes.push_back(Scene::create(getDevice(), "suntemple_statue/suntemple_statue04.fbx"));
     // mpScene = Scene::create(getDevice(), path);
 }
 
+void EncodeDecode::loadAllScenes(const std::vector<std::filesystem::path>& paths, const Fbo* pTargetFbo) {
+    for (const auto& path : paths) {
+        mpScenes.push_back(Scene::create(getDevice(), path));
+        std::cout << "path " << path << std::endl;
+    }
+}
 
 void EncodeDecode::setScene(unsigned int index) {
 
@@ -2216,7 +2225,7 @@ void EncodeDecode::setResolution(unsigned int width, unsigned int height)
 {
     mWidth = width;
     mHeight = height;
-    prevmHeight = height;
+    // prevmHeight = height;
 
     if (mHEncoder != nullptr)
     {
@@ -2329,32 +2338,32 @@ void EncodeDecode::renderRT(RenderContext* pRenderContext, const ref<Fbo>& pTarg
 
 int runMain(int argc, char** argv)
 {
-    unsigned int bitrate = std::stoi(argv[1]);
-    unsigned int framerate = std::stoi(argv[2]);
-    unsigned int width = std::stoi(argv[3]);
-    unsigned int height = std::stoi(argv[4]);
-    std::string scene = argv[5];
-    unsigned int speedInput = std::stoi(argv[6]);
-    std::string scenePath = argv[7];
+    // unsigned int bitrate = std::stoi(argv[1]);
+    // unsigned int framerate = std::stoi(argv[2]);
+    // unsigned int width = std::stoi(argv[3]);
+    // unsigned int height = std::stoi(argv[4]);
+    // std::string scene = argv[5];
+    // unsigned int speedInput = std::stoi(argv[6]);
+    // std::string scenePath = argv[7];
 
-    // unsigned int width = 1920; // 1920 1280 640
-    // unsigned int height = 1080; // 1080 720 360
-    // unsigned int bitrate = 5000;
-    // unsigned int framerate = 166;
-    // std::string scene = "lost_empire"; // lost_empire
+    unsigned int width = 1920; // 1920 1280 640
+    unsigned int height = 1080; // 1080 720 360
+    unsigned int bitrate = 5000;
+    unsigned int framerate = 166;
+    std::string scene = "breakfast_room"; // lost_empire vokselia_spawn salle_de_bain breakfast_room
 
-    // unsigned int speedInput = 3;
-    // std::string scenePath = "lost_empire/path1_seg1.fbx"; // no texture, objects are black suntemple_statue03
+    unsigned int speedInput = 1;
+    std::string scenePath = "breakfast_room/breakfast_room_05.fbx"; // no texture, objects are black suntemple_statue03
 
-    // std::cout << "\n\nframerate runmain  " << framerate << "\n";
-    // std::cout << "bitrate runmain  " << bitrate << "\n";
-    // std::cout << "width runmain  " << width << "\n";
-    // std::cout << "height runmain  " << height << "\n";
-    // std::cout << "scene " << scene << std::endl;
-    // std::cout << "speed " << speedInput << std::endl;
-    // std::cout << "scenePath " << scenePath << std::endl;
-    // //std::cout << "\n\nbitrate std::stoi(argv[1])  " << std::stoi(argv[1]) << "/n";
-    // //std::cout << "\n\nnframerate std::stoi(argv[2])  " << std::stoi(argv[2]) << "/n";
+    std::cout << "\n\nframerate runmain  " << framerate << "\n";
+    std::cout << "bitrate runmain  " << bitrate << "\n";
+    std::cout << "width runmain  " << width << "\n";
+    std::cout << "height runmain  " << height << "\n";
+    std::cout << "scene " << scene << std::endl;
+    std::cout << "speed " << speedInput << std::endl;
+    std::cout << "scenePath " << scenePath << std::endl;
+    //std::cout << "\n\nbitrate std::stoi(argv[1])  " << std::stoi(argv[1]) << "/n";
+    //std::cout << "\n\nnframerate std::stoi(argv[2])  " << std::stoi(argv[2]) << "/n";
 
     SampleAppConfig config;
     config.windowDesc.title = "EncodeDecode";
