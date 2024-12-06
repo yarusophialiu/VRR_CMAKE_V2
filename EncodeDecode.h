@@ -261,9 +261,6 @@ public:
     );
 
 
-
-
-
     void UploadTensorData(
         ID3D12CommandQueue* commandQueue,
         ID3D12CommandAllocator* commandAllocator,
@@ -506,6 +503,9 @@ public:
     uint32_t mOldHeight = 0;
     uint32_t mWidth1920 = 1920;
     uint32_t mHeight1080 = 1080;
+    uint32_t standardWidth = 1920;
+    uint32_t standardHeight = 1080;
+    uint32_t standardFps = 120;
 
 
     uint32_t patchWidth = 128;
@@ -542,12 +542,28 @@ public:
     bool outputEncodedFrames = false;   // output as h264 file to C:\Users\15142\new\Falcor\Source\Samples\EncodeDecode\encodedH264
     bool outputDecodedFrames = false;   // output as bmp file
     bool outputReferenceFrames = false; // output Falcor rendered frames as bmp file
-    bool runONNXModel = false; // if false, change csv file, if true, uncomment encodeDecode.seNNOutputPrefix(filename.str());
-    bool vrrON = true; // false true, if true, set runONNXModel to false
+
+    int targetBitrate = 500;
+    bool runONNXModel = false; // if false, change csv file and bitrate to targetbitrate, if true set fps to 166
+    bool vrrON = false; // false true, if true, set runONNXModel to false, change csv, bitrate, fps
     bool recordExperiment = false;
+
     // suntemple_statue01_1_2000kbps_1103_1601
-    std::string csvFile = "C:/Users/15142/new/Falcor/Source/Samples/EncodeDecode/nnOutput/suntemple_statue01_1_2000kbps_1103_1601.csv"; //lost_empire_1_5000kbps_1030_1945.csv";
+    std::string nnOuputCSVFolder = "C:/Users/15142/new/Falcor/Source/Samples/EncodeDecode/nnOutput/";
+    std::string csvFile = nnOuputCSVFolder + "breakfast_room_05_1_500kbps_1206_1605.csv"; //lost_empire_1_5000kbps_1030_1945.csv";
+    std::string csvFile0 = nnOuputCSVFolder + "suntemple_statue01_1_2000kbps_1103_1601.csv";
+    std::map<int, std::string> csvDictionary = {{0, csvFile0}};
+    // std::map<int, int> reverse_res_map = {{0, 360}, {1, 480}, {2, 720}, {3, 864}, {4, 1080}};
     // bool showDecode = true;
+    std::vector<std::filesystem::path> scenePaths = {
+        "suntemple_statue/suntemple_statue01.fbx",
+        "breakfast_room/breakfast_room_05.fbx",
+        // "path/to/scene2.fbx",
+        // "path/to/scene3.fbx"
+    };
+    int pairIndex = 0;
+    void loadAllScenes(const std::vector<std::filesystem::path>& paths, const Fbo* pTargetFbo);
+
 
     uint32_t mSampleIndex = 0xdeadbeef;
     char kDefaultScene[256] = "";
@@ -598,7 +614,10 @@ public:
     unsigned int bitRate;
     unsigned int speed;
     double mTimeSecs = 0.0;
+    int mTimeFrames = 0;
     int currentSceneIdx = 0;
+    bool resetBaseline = false;
+    bool switchCondition = false;
 
     signed int selectedFps;
     signed int selectedHeight;
