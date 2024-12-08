@@ -17,15 +17,11 @@
 #include "Core/Pass/RasterPass.h"
 #include "d3dx12.h"
 
-
 #define DML_TARGET_VERSION_USE_LATEST
 #include <DirectML.h> // The DirectML header from the Windows SDK.
-// #include <DirectMLX.h>
-// #define ORT_MANUAL_INIT
 #include "dml_provider_factory.h"
 #include "onnxruntime_cxx_api.h"
 
-//#include "FramePresenterD3D11.h"
 
 using namespace Falcor;
 
@@ -415,7 +411,7 @@ private:
     CUdeviceptr mPDecoderRGBAFrame = 0;
     uint8_t* mPHostRGBAFrame = nullptr;
 
-    FramePresenterD3D11* presenterPtr = nullptr;
+    // FramePresenterD3D11* presenterPtr = nullptr;
 
     // ID3D12Resource* mPDecoderOutputTexture360;
     ref<Texture> mPDecoderOutputTexture1080;
@@ -505,7 +501,7 @@ public:
     uint32_t mHeight1080 = 1080;
     uint32_t standardWidth = 1920;
     uint32_t standardHeight = 1080;
-    uint32_t standardFps = 120;
+    uint32_t standardFps = 60;
 
 
     uint32_t patchWidth = 128;
@@ -543,16 +539,18 @@ public:
     bool outputDecodedFrames = false;   // output as bmp file
     bool outputReferenceFrames = false; // output Falcor rendered frames as bmp file
 
-    int targetBitrate = 500;
-    bool runONNXModel = false; // if false, change csv file and bitrate to targetbitrate, if true set fps to 166
-    bool vrrON = false; // false true, if true, set runONNXModel to false, change csv, bitrate, fps
+    int targetBitrate = 3000;
+    bool runONNXModel = false; // if false, change csv file and bitrate to targetbitrate, if true set fps to 166, doesnt care about vrron
+    bool vrrON = true; // false true, if true, set runONNXModel to false, change csv, bitrate, fps
     bool recordExperiment = false;
+    bool resetBaseline = false; // set to standard approach 1080p 60fps
+    bool switchCondition = false;
 
     // suntemple_statue01_1_2000kbps_1103_1601
     std::string nnOuputCSVFolder = "C:/Users/15142/new/Falcor/Source/Samples/EncodeDecode/nnOutput/";
-    std::string csvFile = nnOuputCSVFolder + "breakfast_room_05_1_500kbps_1206_1605.csv"; //lost_empire_1_5000kbps_1030_1945.csv";
-    std::string csvFile0 = nnOuputCSVFolder + "suntemple_statue01_1_2000kbps_1103_1601.csv";
-    std::map<int, std::string> csvDictionary = {{0, csvFile0}};
+    std::string csvFile = nnOuputCSVFolder + "sibenik_12_3_3000kbps_1208_2032.csv"; //lost_empire_1_5000kbps_1030_1945.csv";
+    // std::string csvFile0 = nnOuputCSVFolder + "suntemple_statue01_1_2000kbps_1103_1601.csv";
+    // std::map<int, std::string> csvDictionary = {{0, csvFile0}};
     // std::map<int, int> reverse_res_map = {{0, 360}, {1, 480}, {2, 720}, {3, 864}, {4, 1080}};
     // bool showDecode = true;
     std::vector<std::filesystem::path> scenePaths = {
@@ -616,8 +614,6 @@ public:
     double mTimeSecs = 0.0;
     int mTimeFrames = 0;
     int currentSceneIdx = 0;
-    bool resetBaseline = false;
-    bool switchCondition = false;
 
     signed int selectedFps;
     signed int selectedHeight;

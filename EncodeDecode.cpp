@@ -27,7 +27,7 @@
 
 #include <Windows.h>
 #include <wingdi.h>
-#include "FramePresenterD3D11.h"
+// #include "FramePresenterD3D11.h"
 
 #include <fstream>
 #include <filesystem>
@@ -244,6 +244,36 @@ std::string generateTimestampFilename(const std::string& prefix, const std::stri
 }
 
 
+int extractSpeed(const std::string& csvFile) {
+    // Find the last occurrence of '/' or '\' to isolate the filename
+    size_t lastSlash = csvFile.find_last_of("/\\");
+    std::string filename = csvFile.substr(lastSlash + 1);
+
+    // Remove the file extension (.csv)
+    size_t dotPos = filename.find_last_of('.');
+    if (dotPos != std::string::npos) {
+        filename = filename.substr(0, dotPos);
+    }
+
+    // Split the filename by '_'
+    std::istringstream ss(filename);
+    std::string token;
+    std::vector<std::string> parts;
+    while (std::getline(ss, token, '_')) {
+        parts.push_back(token);
+    }
+
+    // Assuming speed is the 3rd part of the filename
+    if (parts.size() >= 3) {
+        return std::stoi(parts[2]);
+    }
+
+    // Return -1 if parsing fails
+    return -1;
+}
+
+
+
 void saveAsBMP(const std::string& baseFilename, int count, const std::vector<uint8_t>& patchData, int width, int height) {
     std::ostringstream filename;
     filename << baseFilename << "_" << count << ".png";
@@ -375,14 +405,6 @@ std::pair<uint32_t, uint32_t> getRandomStartCoordinates(int frameWidth, int fram
     return {startX, startY};
 }
 
-
-// Encode the patch data as base64 string
-std::string base64_encode_patch(const std::vector<uint8_t>& patchData) {
-    return cppcodec::base64_rfc4648::encode(patchData);
-}
-
-
-
 // static const Falcor::float4 kClearColor(0.38f, 0.52f, 0.10f, 1);
 // static const Falcor::float4 kClearColor(0.5f, 0.16f, 0.098f, 1);
 static const Falcor::float4 kClearColor(0.f, 0.f, 0.0f, 1);
@@ -414,7 +436,7 @@ EncodeDecode::EncodeDecode(const SampleAppConfig& config) : SampleApp(config)
         mCudaDevice = 0;
         mpRtOut = getDevice()->createTexture2D(mWidth1920, mHeight1080, ResourceFormat::BGRA8Unorm, 1, 1, nullptr, ResourceBindFlags::UnorderedAccess | ResourceBindFlags::ShaderResource);
         // mpRtOut = getDevice()->createTexture2D(mWidth, mHeight, ResourceFormat::BGRA8Unorm, 1, 1, nullptr, ResourceBindFlags::UnorderedAccess | ResourceBindFlags::ShaderResource);
-        std::cout << "bitrate: " << bitRate << std::endl;
+        // std::cout << "bitrate: " << bitRate << std::endl;
 
         // cast into directx 12 using: ->getNativeHandle().as<ID3D12Resource*>();
         // falcor's device, createtexture3d
@@ -508,11 +530,17 @@ void EncodeDecode::onLoad(RenderContext* pRenderContext)
     selectedFps = frameRate;
     selectedHeight = mHeight;
 
+    // reset speed
+    int speedCSV = extractSpeed(csvFile);
+    if (speedCSV != -1) {
+        std::cout << "Speed: " << speedCSV << "\n";
+    } else {
+        std::cout << "Failed to extract speed.\n";
+    }
     // read from csv files
     readCsv(csvFile, frameNumbersCSV, resProbabilitiesCSV, fpsProbabilitiesCSV);
 }
 
-/*resize window changes the size of presenter of the decoded frame*/
 void EncodeDecode::onResize(uint32_t width, uint32_t height)
 {
     float h = (float)height; // 1080, 2160, 720,
@@ -533,7 +561,7 @@ void EncodeDecode::extract_patch_from_frame(std::vector<uint8_t>& renderedFrameV
                                 uint32_t startX, uint32_t startY, std::vector<uint8_t>& patchData)
 {
     uint32_t numChannels = 4;  // For BGRA8 format (8 bits per channel, 4 channels)
-    std::cout << "Random startX: " << startX << ", startY: " << startY << std::endl;
+    // std::cout << "Random startX: " << startX << ", startY: " << startY << std::endl;
 
     // Make sure the patch doesn't exceed the texture bounds
     if (startX + patchWidth > frameWidth || startY + patchHeight > frameHeight) {
@@ -558,12 +586,9 @@ void EncodeDecode::extract_patch_from_frame(std::vector<uint8_t>& renderedFrameV
 // Function to decide if settings should change, output fps, resolution based on probability
 std::tuple<int, int, int> EncodeDecode::shouldChangeSettings(int currentFps, int currentResolution, std::vector<float>& fps_probabilities,  std::vector<float>& res_probabilities) {
     // Adjust probabilities based on currentResolution
-
     std::vector<float> p_res(5);
     std::vector<float> p_fps(10);
-    // float bias = runONNXModel ? 0.7f : 0.0f;
     float bias = 0.7f;
-    std::cout << "bias " << bias << std::endl;
 
     for (int index = 0; index < res_probabilities.size(); ++index) {
         int resolution = reverse_res_map[index];
@@ -598,9 +623,8 @@ std::tuple<int, int, int> EncodeDecode::shouldChangeSettings(int currentFps, int
     std::cout << "p_fps, p_res now " << std::endl;
     print_vectors(p_fps, p_res);
 
-
-    std::cout << "Max resolution index: " << max_res_index << ", value: " << max_res_value << std::endl;
     std::cout << "Max FPS index: " << max_fps_index << ", value: " << max_fps_value << std::endl;
+    std::cout << "Max resolution index: " << max_res_index << ", value: " << max_res_value << std::endl;
 
     int h = reverse_res_map[max_res_index];
     int w = res_map_by_height[h];
@@ -780,8 +804,8 @@ float EncodeDecode::computePatchVelocity(RenderContext* pRenderContext, int star
 
     pRenderContext->submit();
     float patchVelocity = mpVelocity->getElements<float>(0, 1).at(0) * (frameRate / 166.0f); // compute motion velocity in pixel per degree in terms of fps166
-    std::cout << "mpVelocity: " << patchVelocity << "\n"; // starting index, the number of elements
-    std::cout << "frameRate, " << frameRate << ", resolution " << mHeight << "\n"; // starting index, the number of elements
+    // std::cout << "mpVelocity: " << patchVelocity << "\n"; // starting index, the number of elements
+    // std::cout << "frameRate, " << frameRate << ", resolution " << mHeight << "\n"; // starting index, the number of elements
     return patchVelocity;
 }
 
@@ -897,9 +921,8 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
         //static int fCount_rt = 0;
 
         if (!runONNXModel) {
-
+            // getAnimationDurationSecs: calculates the maximum duration of all animations in a Scene object
             if (mTimeSecs >= mpScene->getAnimationDurationSecs()) {
-
                 mTimeFrames = 0;
                 mTimeSecs = 0;
                 std::cout << "Resetting\n";
@@ -912,12 +935,9 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
         if (is_set(updates, Scene::UpdateFlags::RecompileNeeded))
             FALCOR_THROW("This sample does not support scene changes that require shader recompilation.");
 
-
         mpRenderGraph->execute(mpRenderContextDecode); // mpRenderContextDecode pRenderContext
-        // motionVectorResource = mpRenderGraph->getOutput("GBuffer.mvec");
-        // motionVectorTexture = static_ref_cast<Texture>(motionVectorResource);
-
         InterlockedIncrement(&mNDecodeFenceVal);
+
         if (mRayTrace)
             renderRT(mpRenderContextDecode, pTargetFbo, mWidth1920, mHeight1080); // mpRenderContextDecode pRenderContext
         else
@@ -936,13 +956,13 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
         pRenderContext->blit(mpRenderGraph->getOutput("TAA.colorOut")->getSRV(), mPEncoderInputTexture864->getRTV(0));
         pRenderContext->blit(mpRenderGraph->getOutput("TAA.colorOut")->getSRV(), mPEncoderInputTexture1080->getRTV(0));
 
-        if (outputReferenceFrames && (mTimeFrames > 0))
-        {
-            // std::cout<< "fCount_rt-frameRate " << fCount_rt-frameRate << "\n";
-            snprintf(szRefOutFilePath, sizeof(szRefOutFilePath), "%s%d.bmp", refBaseFilePath, mTimeFrames); // fCount_rt-frameRate
-            // mpRtOut->captureToFile(0, 0, szRefOutFilePath, Bitmap::FileFormat::BmpFile, Bitmap::ExportFlags::None, false);
-            mpRenderGraph->getOutput("TAA.colorOut")->asTexture()->captureToFile(0, 0, szRefOutFilePath, Bitmap::FileFormat::BmpFile, Bitmap::ExportFlags::None, false);
-        }
+        // if (outputReferenceFrames && (mTimeFrames > 0))
+        // {
+        //     // std::cout<< "fCount_rt-frameRate " << fCount_rt-frameRate << "\n";
+        //     snprintf(szRefOutFilePath, sizeof(szRefOutFilePath), "%s%d.bmp", refBaseFilePath, mTimeFrames); // fCount_rt-frameRate
+        //     // mpRtOut->captureToFile(0, 0, szRefOutFilePath, Bitmap::FileFormat::BmpFile, Bitmap::ExportFlags::None, false);
+        //     mpRenderGraph->getOutput("TAA.colorOut")->asTexture()->captureToFile(0, 0, szRefOutFilePath, Bitmap::FileFormat::BmpFile, Bitmap::ExportFlags::None, false);
+        // }
 
         encodeFrameBuffer(); // write encoded data into h264
         decodeFrameBuffer(); // mDecodedFrame updated, then call handlePictureDecode
@@ -950,7 +970,7 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
 
         if (mTimeFrames >= 2)
         {
-            std::cout << "frameCount: " << mTimeFrames << "\n";
+            std::cout << "\nframeCount: " << mTimeFrames << "\n";
             if (mDecodeLock != 0)
             {
                 pRenderContext->blit(mPDecoderOutputTexture1080->getSRV(), pTargetFbo->getRenderTargetView(0));
@@ -974,17 +994,12 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
                 snprintf(szDecOutFilePath, sizeof(szDecOutFilePath), "%s%d.bmp", decBaseFilePath, mTimeFrames);
                 writeBMP(szDecOutFilePath, mPHostRGBAFrame, mWidth, mHeight);
             }
-
             // void testKeyChange();
-            std::cout << "Frame " << mTimeFrames << ": Changing settings to " << selectedFps << " FPS, " << selectedHeight << "p" << std::endl;
-            // void changeFpsResolution();
 
-            if (vrrON) {
-
+            if (vrrON || runONNXModel) {
                 if (selectedFps != frameRate)
                 {
-                    std::cout << "going to setFrameRate  " << frameRate << "\n";
-
+                    // std::cout << "going to setFrameRate  " << frameRate << "\n";
                     setFrameRate(selectedFps);
                 }
 
@@ -1003,8 +1018,7 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
             auto [startX, startY] = getRandomStartCoordinates(mWidth1920, mHeight1080, 128, 128);
             std::cout << "frameRate, " << frameRate << ", resolution " << mHeight << "\n"; // starting index, the number of elements
             float patchVelocity = computePatchVelocity(pRenderContext, startX, startY);
-
-            std::cout << "vrrON " << vrrON << std::endl;
+            // std::cout << "vrrON " << vrrON << std::endl;
 
             if (runONNXModel)
             {
@@ -1014,16 +1028,20 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
                 processNNOutput(outputResTensorValues, outputFpsTensorValues, res_probabilities, fps_probabilities);
                 appendRowToCsv(mTimeFrames, res_probabilities, fps_probabilities); // write to csv the processed probabilities
 
-                if (mTimeSecs >= mpScene->getAnimationDurationSecs()) {
+                int maxResIndex = findMaxIndex(res_probabilities);
+                int maxFpsIndex = findMaxIndex(fps_probabilities);
+                // Output the results
+                std::cout << "Index with highest resolution: " << maxResIndex << ", prediction " << reverse_res_map[maxResIndex] << std::endl;
+                std::cout << "Index with highest FPS: " << maxFpsIndex  << ", prediction " << reverse_fps_map[maxFpsIndex] << std::endl;
 
+                std::tie(selectedFps, selectedWidth, selectedHeight) = shouldChangeSettings(frameRate, mHeight, fps_probabilities, res_probabilities);
+
+                if (mTimeSecs >= mpScene->getAnimationDurationSecs()) {
                     exit(0);
                 }
-            }
-
-            if (vrrON)
-            {
+            } else if (vrrON) {
+                std::cout << "entering vrrON " << std::endl;
                 getProbabilitiesForFrame(mTimeFrames, res_probabilities, fps_probabilities);
-                // TODO: find prediction
                 // Find indices with the highest probabilities
                 int maxResIndex = findMaxIndex(res_probabilities);
                 int maxFpsIndex = findMaxIndex(fps_probabilities);
@@ -1033,10 +1051,8 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
 
                 std::tie(selectedFps, selectedWidth, selectedHeight) = shouldChangeSettings(frameRate, mHeight, fps_probabilities, res_probabilities);
             } else if (resetBaseline) {
-
-                setResolution(1920, 1080);
-                setFrameRate(60);
-
+                setResolution(standardWidth, standardHeight);
+                setFrameRate(standardFps);
                 resetBaseline = false;
             }
 
@@ -1141,10 +1157,14 @@ bool EncodeDecode::onKeyEvent(const KeyboardEvent& keyEvent)
     return false;
 }
 
+
+
 bool EncodeDecode::onMouseEvent(const MouseEvent& mouseEvent)
 {
     return mpScene && mpScene->onMouseEvent(mouseEvent);
 }
+
+
 
 void EncodeDecode::makeDefaultEncodingParams(
     NV_ENC_INITIALIZE_PARAMS* pIntializeParams,
@@ -1791,7 +1811,8 @@ NVENCSTATUS EncodeDecode::encodeFrameBuffer()
     picParams.outputBitstream = mVOutputRsrc[0];
     picParams.completionEvent = mVPCompletionEvent[bufferIndex];
 
-    if (switchCondition) {
+    // switch condition when changing between our technique and standard technique
+    if (switchCondition || mTimeFrames == 0) {
         picParams.encodePicFlags = NV_ENC_PIC_FLAG_FORCEIDR; // Force an I-frame so we don't use content from the other method to generate our frames.
         switchCondition = false;
     }
@@ -1802,18 +1823,14 @@ NVENCSTATUS EncodeDecode::encodeFrameBuffer()
 
     waitForCompletionEvent(bufferIndex); // wait for nvEncEncodePicture to finish
 
-    // write encoded frames to out_.h264
-    if (outputEncodedFrames)
-    {
-        {
-            // std::cout << "frameLimit: " << frameLimit << std::endl;
-            // std::cout << "write encoded h264 to: " << szOutFilePath << std::endl;
-            fpEncOut->write(reinterpret_cast<char*>(mVEncodeOutData.data()), mVEncodeOutData.size());
-        }
-    }
+    // // write encoded frames to out_.h264
+    // if (outputEncodedFrames)
+    // {
+    //     // std::cout << "write encoded h264 to: " << szOutFilePath << std::endl;
+    //     fpEncOut->write(reinterpret_cast<char*>(mVEncodeOutData.data()), mVEncodeOutData.size());
+    // }
 
-    // clear the previous encoded frame
-    mVEncodeOutData.clear();
+    mVEncodeOutData.clear(); // clear the previous encoded frame
 
     /*
     after encoding, copy thing to bitstream (gpu)
@@ -1939,9 +1956,6 @@ void EncodeDecode::initDecoder()
     CUDA_DRVAPI_CALL(cuCtxPushCurrent(mCudaContext));
     NVDEC_API_CALL(cuvidCreateDecoder(&mHDecoder, &videoDecodeCreateInfo)); // create decoder
     CUDA_DRVAPI_CALL(cuCtxPopCurrent(nullptr));
-    // if (showDecode) {
-    // presenterPtr = new FramePresenterD3D11(mCudaContext, mWidth, mHeight);
-    // }
     makeDecoderOutputBuffers(); // allocate cuda memory
 }
 
@@ -2102,16 +2116,12 @@ int EncodeDecode::handlePictureDecode(CUVIDPICPARAMS* pPicParams)
     // don't need to transfer from cuda to cpu and to directx12
     // do: make the memory using directx12, write to the resource
 
-    // FramePresenterD3D11 presenter(mCudaContext, mWidth, /*mHeight);
-    // if (presenterPtr) {
     // pRenderContext->updateTextureData(mDecodedFrame, mPHostRGBAFrame);
     mDecodedFrame = mPHostRGBAFrame;
 
     // snprintf(szDecOutFilePath, sizeof(szDecOutFilePath), "%s%d.bmp", decBaseFilePath, fcount);
     // writeBMP(szDecOutFilePath, mDecodedFrame, 1920, 1080);
 
-    // presenterPtr->PresentDeviceFrame((uint8_t*)mPDecoderRGBAFrame, mWidth * 4, 0);
-    // }
     mpRenderContextDecode->updateTextureData(mPDecoderOutputTexture1080.get(), mDecodedFrame);
 
     mDecodeLock = 1;
@@ -2298,14 +2308,9 @@ void EncodeDecode::setFrameRate(unsigned int fps)
 {
 
     frameRate = fps; // Assign the private member
-    // prevFrameRate = fps; // Assign the private member
-    frameLimit = frameRate + numOfFrames * frameRate / 30.0; // 68, 34, 45, 30
     targetFrameTime = 1.0f / frameRate;
-    // last_send_time = std::chrono::steady_clock::now();
     std::cout << "setFrameRate  " << frameRate << "\n";
-    std::cout << "frameLimit  " << frameLimit << "\n";
     std::cout << "targetFrameTime  " << targetFrameTime << "\n";
-    // std::cout << "setvlast_send_time  " << "\n";
 
     if (mHEncoder != nullptr)
     {
@@ -2486,6 +2491,7 @@ int runMain(int argc, char** argv)
     if (encodeDecode.runONNXModel)
     {
         std::string filename = generateTimestampFilename(scene, std::to_string(speedInput) + "_" + std::to_string(encodeDecode.targetBitrate) + "kbps");
+        // std::string filename = generateTimestampFilename(scene, std::to_string(encodeDecode.targetBitrate) + "kbps");
         std::cout << "filename is " << filename << std::endl;
         encodeDecode.setNNOutputPrefix(filename);
     }

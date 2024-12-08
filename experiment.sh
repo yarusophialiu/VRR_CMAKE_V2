@@ -4,13 +4,13 @@
 # BITRATES=(8000)
 # BITRATES=(8000)
 # BITRATES=(3500 4000 4500 5000 5500 6000 6500 7000)
-BITRATES=(2000 2500 3000 3500 4000 4500 5000 5500 6000 6500 7000 7500 8000)
+# BITRATES=(2000 2500 3000 3500 4000 4500 5000 5500 6000 6500 7000 7500 8000)
 # BITRATES=(2000 2500 3000 3500 4000 4500)
-BITRATES=(2000)
+BITRATES=(3000)
 
-FRAMERATE=(30 40 50 60 70 80 90 100 110 120)
+# FRAMERATE=(30 40 50 60 70 80 90 100 110 120)
 # FRAMERATE=(30)
-FRAMERATE=(60)
+FRAMERATE=(60) # TODO: set to 166 if runONNXModel is true
 
 # resolutions=("1920x1080" "1536x864" "1280x720" "960x540" "854x480" "x360") # "1200x676"
 resolutions=("1920x1080" "1536x864" "1280x720" "854x480" "640x360")
@@ -24,13 +24,13 @@ resolutions=("1920x1080")
 
 paths=(1)
 segs=(1)
-speeds=(1)
+speeds=(3)
 # 23, 31 have problems
 
 
 scenes=("crytek_sponza" "suntemple_statue" "bistro" "room" "lost_empire" "living_room" "suntemple" "sibenik" "bedroom" "gallery")
 # scenes=("bistro" "crytek_sponza" "gallery"  "living_room" "sibenik") # "breakfast_room"
-scenes=("suntemple_statue")
+scenes=("sibenik")
 
 
 # run this line in git bash
@@ -41,8 +41,8 @@ for sceneval in "${scenes[@]}"; do
       # Construct the key and value
     #    scene="${sceneval}_path${path}_seg${seg}"
     #    scenepath="${sceneval}/path${path}_seg${seg}.fbx"
-       scene="suntemple_statue01"
-       scenepath="${sceneval}/suntemple_statue01.fbx"
+       scene="sibenik_12" # sibenik_12 breakfast_room_05
+       scenepath="${sceneval}/${scene}.fbx"
     #    echo "scene: $scene" "seg: $seg" "scenedict: ${scenedict[$scene]}"
         for speed in "${speeds[@]}"; do
             echo "speed: $speed"

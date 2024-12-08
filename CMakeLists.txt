@@ -54,7 +54,6 @@ target_link_libraries(EncodeDecode PRIVATE
     ColorSpace
     d3d11.lib
     dxgi.lib
-    # ${OpenCV_LIBS} # link opencv libraries
 )
 
 target_copy_shaders(EncodeDecode Samples/EncodeDecode)
