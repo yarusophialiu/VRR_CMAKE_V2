@@ -244,6 +244,38 @@ std::string generateTimestampFilename(const std::string& prefix, const std::stri
 }
 
 
+std::pair<int, int> extractBitrateAndSpeed(const std::string& csvFile) {
+    // Find the last occurrence of '/' or '\' to isolate the filename
+    size_t lastSlash = csvFile.find_last_of("/\\");
+    std::string filename = csvFile.substr(lastSlash + 1);
+
+    // Remove the file extension (.csv)
+    size_t dotPos = filename.find_last_of('.');
+    if (dotPos != std::string::npos) {
+        filename = filename.substr(0, dotPos);
+    }
+
+    // Split the filename by '_'
+    std::istringstream ss(filename);
+    std::string token;
+    std::vector<std::string> parts;
+    while (std::getline(ss, token, '_')) {
+        parts.push_back(token);
+    }
+
+    // Assuming bitrate and speed are in specific positions
+    // bitrate is the 4th part (3000kbps), speed is the 3rd part (3)
+    if (parts.size() >= 5) {
+        int bitrate = std::stoi(parts[3].substr(0, parts[3].find("kbps")));
+        int speed = std::stoi(parts[2]);
+        return {bitrate, speed};
+    }
+
+    // Return -1, -1 if parsing fails
+    return {-1, -1};
+}
+
+
 int extractSpeed(const std::string& csvFile) {
     // Find the last occurrence of '/' or '\' to isolate the filename
     size_t lastSlash = csvFile.find_last_of("/\\");
@@ -418,10 +450,10 @@ EncodeDecode::EncodeDecode(const SampleAppConfig& config) : SampleApp(config)
         // mWidth = config.windowDesc.width;   // 1920, 4096, 1280, 854, 640, 960, 1024, 1280, 1440, 1423
         // mHeight = config.windowDesc.height; // 1080, 2160, 720, 480, 360, 540, 600, 800, 900, 800
 
-        std::cout << '\n';
-        std::cout << "mWidth: " << mWidth << std::endl;
-        std::cout << "mHeight: " << mHeight << std::endl;
-        std::cout << '\n';
+        // std::cout << '\n';
+        // std::cout << "mWidth: " << mWidth << std::endl;
+        // std::cout << "mHeight: " << mHeight << std::endl;
+        // std::cout << '\n';
 
         mpDevice = getDevice();
         mpD3D12Device = mpDevice->getNativeHandle().as<ID3D12Device*>();
@@ -457,9 +489,10 @@ EncodeDecode::EncodeDecode(const SampleAppConfig& config) : SampleApp(config)
             mWidth1920, mHeight1080, ResourceFormat::RG32Float, 1, mipLevels, nullptr,
             // mWidth, mHeight, ResourceFormat::RG32Float, 1, mipLevels, nullptr,
             ResourceBindFlags::UnorderedAccess | ResourceBindFlags::ShaderResource | ResourceBindFlags::RenderTarget
-    );
+        );
 
-
+        initPairList();
+        mCurrentCondition = mConditions[0];
 }
 
 EncodeDecode::~EncodeDecode() {}
@@ -480,6 +513,24 @@ void EncodeDecode::onLoad(RenderContext* pRenderContext)
     // ThrowIfFailed(mpD3D12Device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, mpCommandAllocator.Get(), mpPipelineState.Get(), IID_PPV_ARGS(&mpCommandList)));
     (mpD3D12Device->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&mpCommandQueue)));
 
+
+    loadAllScenes();
+    // set bitrate, scene for the first pair
+    std::cout << "onloading mCurrentTrial " << mCurrentTrial << std::endl;
+    mCurrentCondition = mConditions[mCurrentTrial];
+    std::string inferenceFileNmame = getInferenceFileNameForStimulus(&mCurrentCondition.stimulus1);
+    std::string inferenceFilePath = "nnOutput/" + inferenceFileNmame;
+    readCsv(inferenceFilePath, frameNumbersCSV, resProbabilitiesCSV, fpsProbabilitiesCSV);
+    std::cout << "inferenceFilePath " << inferenceFilePath << std::endl;
+
+    setScene(mCurrentCondition.stimulus1.sceneIndex);
+    setResolution(1920, 1080);
+    setFrameRate(60);
+    setBitRate(mCurrentCondition.stimulus1.bitrate);
+    // loadScene(kDefaultScene, getTargetFbo().get());
+
+
+
     initDirectML();
     initEncoder();
     initDecoder();
@@ -487,14 +538,18 @@ void EncodeDecode::onLoad(RenderContext* pRenderContext)
 
     // readFrameData("C:/Users/15142/new/Falcor/Source/Samples/EncodeDecode/nn_results.txt");
     // loadScene(kDefaultScene, getTargetFbo().get());
-    if (recordExperiment)
-    {
-        loadAllScenes(scenePaths, getTargetFbo().get());
-    } else {
-        loadScene(kDefaultScene, getTargetFbo().get());
-    }
 
-    setScene(0);
+    // setScene(0);
+    // readCsv(csvPaths[pairIndex], frameNumbersCSV, resProbabilitiesCSV, fpsProbabilitiesCSV);
+    // auto [bitrateCSV, speedCSV] = extractBitrateAndSpeed(csvPaths[pairIndex]);
+    // if (bitrateCSV != -1 && speedCSV != -1) {
+    //     std::cout << "Bitrate: " << bitrateCSV << " kbps\n";
+    //     std::cout << "Speed: " << speedCSV << "\n";
+    // } else {
+    //     std::cout << "Failed to extract bitrate and speed.\n";
+    // }
+    // resetBitRate(bitrateCSV); // TODO: should we reset bitrate for runonnxmodel?
+    // setSpeed(speedCSV);
 
     Properties gBufferProps = {};
     Properties fXAAProps = {};
@@ -530,15 +585,7 @@ void EncodeDecode::onLoad(RenderContext* pRenderContext)
     selectedFps = frameRate;
     selectedHeight = mHeight;
 
-    // reset speed
-    int speedCSV = extractSpeed(csvFile);
-    if (speedCSV != -1) {
-        std::cout << "Speed: " << speedCSV << "\n";
-    } else {
-        std::cout << "Failed to extract speed.\n";
-    }
-    // read from csv files
-    readCsv(csvFile, frameNumbersCSV, resProbabilitiesCSV, fpsProbabilitiesCSV);
+
 }
 
 void EncodeDecode::onResize(uint32_t width, uint32_t height)
@@ -588,12 +635,13 @@ std::tuple<int, int, int> EncodeDecode::shouldChangeSettings(int currentFps, int
     // Adjust probabilities based on currentResolution
     std::vector<float> p_res(5);
     std::vector<float> p_fps(10);
-    float bias = 0.7f;
+    float resolutionBias = 0.9f;
+    float framerateBias = 0.9f;
 
     for (int index = 0; index < res_probabilities.size(); ++index) {
         int resolution = reverse_res_map[index];
         if (resolution == currentResolution) {
-            p_res[index] = bias + res_probabilities[index];
+            p_res[index] = resolutionBias + res_probabilities[index];
         } else {
             p_res[index] = res_probabilities[index];
         }
@@ -602,7 +650,7 @@ std::tuple<int, int, int> EncodeDecode::shouldChangeSettings(int currentFps, int
     for (int index = 0; index < fps_probabilities.size(); ++index) {
         int fps = reverse_fps_map[index];
         if (fps == currentFps) {
-            p_fps[index] = bias + fps_probabilities[index];
+            p_fps[index] = framerateBias + fps_probabilities[index];
         } else {
             p_fps[index] = fps_probabilities[index];
         }
@@ -656,6 +704,11 @@ void EncodeDecode::readCsv(const std::string& filename,
                             std::vector<std::vector<float>>& resProbabilities,
                             std::vector<std::vector<float>>& fpsProbabilities)
 {
+    // Reinitialize vectors
+    frameNumbers.clear();
+    resProbabilities.clear();
+    fpsProbabilities.clear();
+
     std::ifstream file(filename);
 
     if (!file.is_open()) {
@@ -696,7 +749,99 @@ void EncodeDecode::readCsv(const std::string& filename,
     }
 
     file.close();
+
+    // // Size checks
+    // std::cout << "filename: " << filename << "\n";
+    // std::cout << "Size of frameNumbers: " << frameNumbers.size() << "\n";
+    // std::cout << "Size of resProbabilities: " << resProbabilities.size() << "\n";
+    // std::cout << "Size of fpsProbabilities: " << fpsProbabilities.size() << "\n";
 }
+
+
+/*
+
+@TODO:
+    Randomise order of condition list.
+
+
+*/
+void EncodeDecode::initPairList() {
+
+
+    for (int i = 0; i < bitrates.size(); ++i) {
+        for (int j = 0; j < sceneNames.size(); ++j) {
+            for (int k = 0; k < pathsPerScene; ++k) {
+                // Here we assume all base conditions are 1080p60, we may want to change that
+
+                ExperimentStimulus s1;
+                ExperimentStimulus s2;
+                ExperimentCondition condition;
+
+                s1.sceneName = sceneNames[j];
+                s1.sceneIndex = j * pathsPerScene + k;
+                s1.pathIndex = k;
+                s1.bitrate = bitrates[i];
+                s1.resolution = -1;
+                s1.framerate = -1;
+
+                s2.sceneName = sceneNames[j];
+                s2.sceneIndex = j * pathsPerScene + k;
+                s2.pathIndex = k;
+                s2.bitrate = bitrates[i];
+                s2.resolution = 1080;
+                s2.framerate = 60;
+
+                condition.stimulus1 = s1;
+                condition.stimulus2 = s2;
+
+                mConditions.push_back(condition);
+            }
+        }
+    }
+}
+
+
+std::string EncodeDecode::getInferenceFileNameForStimulus(ExperimentStimulus* stimulus) {
+
+    std::string result;
+
+    if (stimulus && stimulus->resolution == -1 && stimulus->framerate == -1) {
+
+        result = stimulus->sceneName + "_" + std::to_string(stimulus->pathIndex) + "_" + std::to_string(stimulus->bitrate) + "kbps.csv";
+    }
+
+    return result;
+}
+
+
+void EncodeDecode::switchToNextPair() {
+
+    ++mCurrentTrial;
+
+    std::cout << "Switching to condition: " << mCurrentTrial << " of " << mConditions.size() << "\n";
+
+    mCurrentCondition = mConditions[mCurrentTrial];
+
+    std::string inferenceFileNmame = getInferenceFileNameForStimulus(&mCurrentCondition.stimulus1);
+    std::string inferenceFilePath = "nnOutput/" + inferenceFileNmame;
+
+    readCsv(inferenceFilePath, frameNumbersCSV, resProbabilitiesCSV, fpsProbabilitiesCSV);
+    std::cout << "mCurrentTrial " << mCurrentTrial << std::endl;
+    std::cout << "switchToNextPair inferenceFilePath " << inferenceFilePath << std::endl;
+
+    selectedFps = frameRate;
+    selectedHeight = mHeight;
+    setScene(mCurrentCondition.stimulus1.sceneIndex);
+    setResolution(1920, 1080);
+    setFrameRate(60);
+    setBitRate(mCurrentCondition.stimulus1.bitrate);
+    mTimeSecs = 0;
+    mTimeFrames = 0;
+
+    mOldWidth = 1920;
+    mOldHeight = 1080;
+}
+
 
 void EncodeDecode::appendChoiceToCsv()
 {
@@ -717,7 +862,9 @@ void EncodeDecode::appendChoiceToCsv()
 void EncodeDecode::appendRowToCsv(int frameNumber,
                     const std::vector<float>& res_probabilities, const std::vector<float>& fps_probabilities)
 {
-    fs::path dirPath = fs::path(szNNOutputPrefixFilePath) / nnOutputFilename;
+    std::string csvName = mCurrentCondition.stimulus1.sceneName + "_" + std::to_string(mCurrentCondition.stimulus1.pathIndex)
+                        + "_" + std::to_string(mCurrentCondition.stimulus1.bitrate) + "kbps.csv";
+    fs::path dirPath = fs::path(szNNOutputPrefixFilePath) / csvName;
     // Open the file in append mode
     std::ofstream file(dirPath, std::ios::app);
     // std::ofstream file(filename, std::ios::app); // Open in append mode
@@ -777,19 +924,19 @@ void EncodeDecode::testKeyChange()
 
 void EncodeDecode::changeFpsResolution()
 {
-    if (selectedFps != frameRate)
-    {
-        std::cout << "going to setFrameRate  " << frameRate << "\n";
+    // if (selectedFps != frameRate)
+    // {
+    //     std::cout << "going to setFrameRate  " << frameRate << "\n";
 
-        setFrameRate(selectedFps);
-    }
+    //     setFrameRate(selectedFps);
+    // }
 
-    if (selectedHeight != mHeight && currentResolutionFrameLength >= minResolutionFrameLength)
-    {
-        setResolution(selectedWidth, selectedHeight);
-        currentResolutionFrameLength = 0;
-    }
-    std::cout << "Changing settings to " << selectedFps << " FPS, " << selectedHeight << "p" << std::endl;
+    // if (selectedHeight != mHeight && currentResolutionFrameLength >= minResolutionFrameLength)
+    // {
+    //     setResolution(selectedWidth, selectedHeight);
+    //     currentResolutionFrameLength = 0;
+    // }
+    // std::cout << "Changing settings to " << selectedFps << " FPS, " << selectedHeight << "p" << std::endl;
 }
 
 
@@ -803,7 +950,7 @@ float EncodeDecode::computePatchVelocity(RenderContext* pRenderContext, int star
     mpComputeVelocityPass->execute(pRenderContext, Falcor::uint3(1u, 1u, 1u));
 
     pRenderContext->submit();
-    float patchVelocity = mpVelocity->getElements<float>(0, 1).at(0) * (frameRate / 166.0f); // compute motion velocity in pixel per degree in terms of fps166
+    float patchVelocity = mpVelocity->getElements<float>(0, 1).at(0) ; // compute motion velocity in pixel per degree in terms of fps166
     // std::cout << "mpVelocity: " << patchVelocity << "\n"; // starting index, the number of elements
     // std::cout << "frameRate, " << frameRate << ", resolution " << mHeight << "\n"; // starting index, the number of elements
     return patchVelocity;
@@ -833,6 +980,7 @@ void EncodeDecode::runONNXInference(RenderContext* pRenderContext, int startX, i
     std::vector<int64_t> bitrateVec = {targetBitrate}; // TODO: change for bitrate you want
     std::vector<int64_t> resolutionVec = {1080};
     std::vector<float> velocityVec = {patchVelocity};
+    std::cout << "target bitrate  " << targetBitrate << "\n";
 
     Ort::AllocatorWithDefaultOptions allocator;
     Ort::MemoryInfo memoryInfo = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
@@ -885,8 +1033,8 @@ void EncodeDecode::processNNOutput(std::vector<float>& outputResTensorValues,
     int fps_pred_index = argmax(outputFpsTensorValues);
     int predicted_resolution = reverse_res_map[res_pred_index];
     int predicted_fps = reverse_fps_map[fps_pred_index];
-    std::cout << "fps_preds: " << fps_pred_index << ", predicted_fps: " << predicted_fps << " fps" << std::endl;
-    std::cout << "res_preds: " << res_pred_index << ", predicted_resolution: " << predicted_resolution << "p" << std::endl;
+    std::cout << "fps_preds predicted_fps: " << predicted_fps << " fps" << std::endl;
+    std::cout << "res_preds predicted_resolution: " << predicted_resolution << "p" << std::endl;
 
     float maxRes = *std::max_element(outputResTensorValues.begin(), outputResTensorValues.end());
     for (float& value : outputResTensorValues) {
@@ -915,21 +1063,22 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
     startTime = getCurrentTime(); // Capture the start time
     pRenderContext->clearFbo(pTargetFbo.get(), kClearColor, 1.0f, 0, FboAttachmentType::All);
 
-
     if (mpScene)
     {
         //static int fCount_rt = 0;
 
         if (!runONNXModel) {
             // getAnimationDurationSecs: calculates the maximum duration of all animations in a Scene object
-            if (mTimeSecs >= mpScene->getAnimationDurationSecs()) {
+            if (mTimeSecs >= mpScene->getAnimationDurationSecs() / speed) {
                 mTimeFrames = 0;
                 mTimeSecs = 0;
                 std::cout << "Resetting\n";
             }
         }
 
+
         Scene::UpdateFlags updates = mpScene->update(pRenderContext, speed * mTimeSecs); // 2* timesec, 0.5
+        std::cout << "Scene animation duration(s): " << mpScene->getAnimationDurationSecs() << "\n";
         if (is_set(updates, Scene::UpdateFlags::GeometryChanged))
             FALCOR_THROW("This sample does not support scene geometry changes.");
         if (is_set(updates, Scene::UpdateFlags::RecompileNeeded))
@@ -956,6 +1105,12 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
         pRenderContext->blit(mpRenderGraph->getOutput("TAA.colorOut")->getSRV(), mPEncoderInputTexture864->getRTV(0));
         pRenderContext->blit(mpRenderGraph->getOutput("TAA.colorOut")->getSRV(), mPEncoderInputTexture1080->getRTV(0));
 
+        // pRenderContext->blit(mpRenderGraph->getOutput("GBuffer.mvec")->getSRV(), mPEncoderInputTexture360->getRTV(0));
+        // pRenderContext->blit(mpRenderGraph->getOutput("GBuffer.mvec")->getSRV(), mPEncoderInputTexture480->getRTV(0));
+        // pRenderContext->blit(mpRenderGraph->getOutput("GBuffer.mvec")->getSRV(), mPEncoderInputTexture720->getRTV(0));
+        // pRenderContext->blit(mpRenderGraph->getOutput("GBuffer.mvec")->getSRV(), mPEncoderInputTexture864->getRTV(0));
+        // pRenderContext->blit(mpRenderGraph->getOutput("GBuffer.mvec")->getSRV(), mPEncoderInputTexture1080->getRTV(0));
+
         // if (outputReferenceFrames && (mTimeFrames > 0))
         // {
         //     // std::cout<< "fCount_rt-frameRate " << fCount_rt-frameRate << "\n";
@@ -966,15 +1121,20 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
 
         encodeFrameBuffer(); // write encoded data into h264
         decodeFrameBuffer(); // mDecodedFrame updated, then call handlePictureDecode
-        getTextRenderer().render(pRenderContext, getFrameRate().getMsg(), pTargetFbo, {20, 20}); // print fps on the screen
+
+        Falcor::float3 cameraPosition = mpScene->getCamera()->getPosition();
+        std::cout << cameraPosition.x << "," << cameraPosition.y << "," <<cameraPosition.z << "\n";
 
         if (mTimeFrames >= 2)
         {
             std::cout << "\nframeCount: " << mTimeFrames << "\n";
+            std::cout << "bitrate : " << bitRate << "\n";
+
             if (mDecodeLock != 0)
             {
                 pRenderContext->blit(mPDecoderOutputTexture1080->getSRV(), pTargetFbo->getRenderTargetView(0));
             }
+            // pRenderContext->blit(mpRenderGraph->getOutput("GBuffer.mvec")->getSRV(), pTargetFbo->getRenderTargetView(0)); //  mpRtMip->getRTV() pTargetFbo->getRenderTargetView(0));
 
             double endTime = 0.0;
             endTime = getCurrentTime();
@@ -985,8 +1145,11 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
             {
                 // Insert a delay to match the desired FPS
                 // std::cout << "start sleepoing, targetFrameTime: " << targetFrameTime << "\n";
-                float sleepTime = targetFrameTime - elapsedTime;
-                std::this_thread::sleep_for(std::chrono::duration<float>(sleepTime));
+                float sleepTime = fmax(targetFrameTime - elapsedTime - 0.003, 0);
+
+                std::cout << "Waiting for time: " << sleepTime << "\n";
+                //std::this_thread::sleep_for(std::chrono::duration<float>(sleepTime));
+
             }
 
            if (outputDecodedFrames)
@@ -994,12 +1157,10 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
                 snprintf(szDecOutFilePath, sizeof(szDecOutFilePath), "%s%d.bmp", decBaseFilePath, mTimeFrames);
                 writeBMP(szDecOutFilePath, mPHostRGBAFrame, mWidth, mHeight);
             }
-            // void testKeyChange();
 
             if (vrrON || runONNXModel) {
                 if (selectedFps != frameRate)
                 {
-                    // std::cout << "going to setFrameRate  " << frameRate << "\n";
                     setFrameRate(selectedFps);
                 }
 
@@ -1008,17 +1169,17 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
                     setResolution(selectedWidth, selectedHeight);
                     currentResolutionFrameLength = 0;
                 }
-
-                std::cout << "Changing settings to " << selectedFps << " FPS, " << selectedHeight << "p" << std::endl;
             }
 
             std::vector<float> res_probabilities(5);
             std::vector<float> fps_probabilities(10);
 
-            auto [startX, startY] = getRandomStartCoordinates(mWidth1920, mHeight1080, 128, 128);
+            // auto [startX, startY] = getRandomStartCoordinates(mWidth1920, mHeight1080, 128, 128);
+            int startX = 0;
+            int startY = 0;
             std::cout << "frameRate, " << frameRate << ", resolution " << mHeight << "\n"; // starting index, the number of elements
             float patchVelocity = computePatchVelocity(pRenderContext, startX, startY);
-            // std::cout << "vrrON " << vrrON << std::endl;
+            std::cout << "patchVelocity " << patchVelocity << std::endl;
 
             if (runONNXModel)
             {
@@ -1036,8 +1197,15 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
 
                 std::tie(selectedFps, selectedWidth, selectedHeight) = shouldChangeSettings(frameRate, mHeight, fps_probabilities, res_probabilities);
 
-                if (mTimeSecs >= mpScene->getAnimationDurationSecs()) {
-                    exit(0);
+                if (mTimeSecs >= mpScene->getAnimationDurationSecs() / speed) {
+
+                    if (mCurrentTrial >= mConditions.size() - 1) {
+
+                        exit(0);
+                    } else {
+
+                        switchToNextPair();
+                    }
                 }
             } else if (vrrON) {
                 std::cout << "entering vrrON " << std::endl;
@@ -1051,8 +1219,8 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
 
                 std::tie(selectedFps, selectedWidth, selectedHeight) = shouldChangeSettings(frameRate, mHeight, fps_probabilities, res_probabilities);
             } else if (resetBaseline) {
-                setResolution(standardWidth, standardHeight);
-                setFrameRate(standardFps);
+                setResolution(res_map_by_height[mCurrentCondition.stimulus2.resolution], mCurrentCondition.stimulus2.resolution);
+                setFrameRate(mCurrentCondition.stimulus2.framerate);
                 resetBaseline = false;
             }
 
@@ -1066,10 +1234,10 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
         mTimeSecs += 1.0 / frameRate;
     }
 
+    getTextRenderer().render(pRenderContext, getFrameRate().getMsg(), pTargetFbo, {20, 20}); // print fps on the screen
     mOldWidth = mWidth;
     mOldHeight = mHeight;
     ++currentResolutionFrameLength;
-
 }
 
 void EncodeDecode::onGuiRender(Gui* pGui)
@@ -1094,65 +1262,40 @@ bool EncodeDecode::onKeyEvent(const KeyboardEvent& keyEvent)
 {
 
     if (keyEvent.type != KeyboardEvent::Type::KeyPressed)
-    {
-        return 0;
-    }
+        return false;
 
     if (keyEvent.key == Falcor::Input::Key::Up) {
+        // mResolutionChange = 1;
         vrrON = true;
-
         mTimeFrames = 0;
         mTimeSecs = 0;
-
-        // mResolutionChange = 1;
         switchCondition = true;
         return true;
     } else if (keyEvent.key == Falcor::Input::Key::Down) {
-        vrrON = false;
         // mResolutionChange = -1;
-
+        vrrON = false;
         mTimeFrames = 0;
         mTimeSecs = 0;
         resetBaseline = true;
         switchCondition = true;
+        currentSceneIdx += 1;
         return true;
-    }
-    // else if (keyEvent.key == Falcor::Input::Key::Space) {
-    //     mResolutionChange = -2;
-    //     return true;
-    // }
-    // else if (keyEvent.key == Falcor::Input::Key::Left) {
-    //     vrrON = true;
-    // } else if (keyEvent.key == Falcor::Input::Key::Right) {
-    //     vrrON = false;
-    // }
-    else if (keyEvent.key == Falcor::Input::Key::Space) {
+    } else if (keyEvent.key == Falcor::Input::Key::Space) {
         //Record choice here experimentFilename
+        std::cout << "mCurrentTrial " << mCurrentTrial << std::endl;
+        std::cout << "mCurrentTrial " << mCurrentTrial << std::endl;
         appendChoiceToCsv();
         pairIndex += 1; // jump to next pair
-        int sceneIndex = (pairIndex < scenePaths.size()) ? pairIndex * 2 : (scenePaths.size() - 1) * 2;
-        std::cout << "sceneIndex set to " << sceneIndex << std::endl;
-        setScene(sceneIndex);
-        mTimeSecs = 0;
-    }
-    else if (keyEvent.key == Falcor::Input::Key::Left) {
-        setScene(pairIndex * 2);
-        vrrON = true;
-        // mTimeSecs = 0;
-    } else if (keyEvent.key == Falcor::Input::Key::Right) {
-        setScene(pairIndex * 2 + 1);
-        vrrON = false;
-        if (mHeight != standardHeight)
-        {
-            setResolution(standardWidth, standardHeight);
+
+        if (mCurrentTrial >= mConditions.size() - 1) {
+
+            exit(0);
+            return false;
         }
-        if (frameRate != standardFps)
-        {
-            setFrameRate(standardFps);
-        }
-        // mTimeSecs = 0;
+
+        switchToNextPair();
+        return true;
     }
-    // record left and right, write to a csv file
 
     return false;
 }
@@ -1320,9 +1463,9 @@ void EncodeDecode::initEncoder()
     mEncodeConfig.rcParams.rateControlMode = NV_ENC_PARAMS_RC_CBR; // NV_ENC_PARAMS_RC_VBR NV_ENC_PARAMS_RC_CONSTQP, NV_ENC_PARAMS_RC_CBR,
     mEncodeConfig.rcParams.multiPass = NV_ENC_TWO_PASS_FULL_RESOLUTION; // not valid for h264
     // disable below for CRF (target quality)
-    mEncodeConfig.rcParams.averageBitRate = bitRate;
+    mEncodeConfig.rcParams.averageBitRate = bitRate * 1000;
     // mEncodeConfig.rcParams.averageBitRate = 0;
-    mEncodeConfig.rcParams.maxBitRate = bitRate;
+    mEncodeConfig.rcParams.maxBitRate = bitRate * 1000;
     mEncodeConfig.rcParams.vbvBufferSize =
         // (mEncodeConfig.rcParams.averageBitRate * mEncoderInitializeParams.frameRateDen / mEncoderInitializeParams.frameRateNum) * 5;
         (mEncodeConfig.rcParams.maxBitRate * mEncoderInitializeParams.frameRateDen / mEncoderInitializeParams.frameRateNum) * 5;
@@ -1987,10 +2130,11 @@ void EncodeDecode::decodeFrameBuffer()
 
 int EncodeDecode::handleSequenceChange(CUVIDEOFORMAT* pFormat) {
 
-    std::cout << "Resolution changed\n";
 
     unsigned int width = pFormat->coded_width;
     unsigned int height = pFormat->coded_height;
+
+    std::cout << "Decoder resolution changed to : " << width << "x" << height << "\n";
 
     if (mHDecoder != nullptr)
         {
@@ -2205,18 +2349,28 @@ void EncodeDecode::loadScene(const std::filesystem::path& path, const Fbo* pTarg
     // mpScene = Scene::create(getDevice(), path);
 }
 
-void EncodeDecode::loadAllScenes(const std::vector<std::filesystem::path>& paths, const Fbo* pTargetFbo) {
-    for (const auto& path : paths) {
-        mpScenes.push_back(Scene::create(getDevice(), path));
-        mpScenes.push_back(Scene::create(getDevice(), path));
-        std::cout << "path " << path << std::endl;
+void EncodeDecode::loadAllScenes() {
+    for (int i = 0; i < sceneNames.size(); ++i) {
+        for (int j = 0; j < pathsPerScene; ++j) {
+            std::string filePath = sceneNames[i] + "/" + std::to_string(j) + ".fbx";
+            mpScenes.push_back(Scene::create(getDevice(), filePath));
+        }
     }
 }
 
 void EncodeDecode::setScene(unsigned int index) {
 
+    std::string log;
+
     mpScene = mpScenes.at(index);
-    currentSceneIdx = index;
+
+    if (mpRenderGraph) {
+
+        mpRenderGraph->setScene(mpScene);
+        mpRenderGraph->compile(mpRenderGraph->getDevice()->getRenderContext(), log);
+    }
+
+    currentSceneIdx = index * 2;
     mpCamera = mpScene->getCamera();
 
     // mpScene->setCameraController(Scene::CameraControllerType::Orbiter);
@@ -2301,16 +2455,37 @@ void EncodeDecode::setPerFrameVars(const Fbo* pTargetFbo)
 void EncodeDecode::setBitRate(unsigned int br)
 {
     bitRate = br; // Assign the private member
+    targetBitrate = br;
     std::cout << "setBitRate  " << bitRate << "\n";
+    std::cout << "target bitrate  " << targetBitrate << "\n";
+
+    if (mHEncoder != nullptr)
+    {
+        mEncoderInitializeParams.encodeConfig->rcParams.maxBitRate = br * 1000;
+        mEncoderInitializeParams.encodeConfig->rcParams.averageBitRate = br * 1000;
+        mEncoderInitializeParams.encodeConfig->rcParams.vbvBufferSize = (br * 1000* mEncoderInitializeParams.frameRateDen / mEncoderInitializeParams.frameRateNum) * 5;
+        mEncoderInitializeParams.encodeConfig->rcParams.vbvInitialDelay = mEncoderInitializeParams.encodeConfig->rcParams.vbvBufferSize;
+
+        NV_ENC_RECONFIGURE_PARAMS reconfig_params = {0};
+        reconfig_params.reInitEncodeParams = mEncoderInitializeParams;
+        reconfig_params.resetEncoder = 1;
+        reconfig_params.forceIDR = 1;
+        reconfig_params.version = NV_ENC_RECONFIGURE_PARAMS_VER;
+
+        // NvEncReconfigureEncoder(mHEncoder, &reconfig_params);
+        NVENC_API_CALL(mNVEnc.nvEncReconfigureEncoder(mHEncoder, &reconfig_params));
+    }
 }
+
+
 
 void EncodeDecode::setFrameRate(unsigned int fps)
 {
 
+    SampleApp::setTargetFramerate(fps);
     frameRate = fps; // Assign the private member
     targetFrameTime = 1.0f / frameRate;
-    std::cout << "setFrameRate  " << frameRate << "\n";
-    std::cout << "targetFrameTime  " << targetFrameTime << "\n";
+    std::cout << "setting frame rate to: " << frameRate << "\n";
 
     if (mHEncoder != nullptr)
     {
@@ -2318,7 +2493,7 @@ void EncodeDecode::setFrameRate(unsigned int fps)
         mEncoderInitializeParams.frameRateDen = 1;
         NV_ENC_RECONFIGURE_PARAMS reconfig_params = {0};
         reconfig_params.reInitEncodeParams = mEncoderInitializeParams;
-        reconfig_params.resetEncoder = 1;
+        reconfig_params.resetEncoder = 0;
         // reconfig_params.forceIDR = 1;
         reconfig_params.version = NV_ENC_RECONFIGURE_PARAMS_VER;
         // NvEncReconfigureEncoder(mHEncoder, &reconfig_params);
@@ -2333,8 +2508,12 @@ void EncodeDecode::setResolution(unsigned int width, unsigned int height)
     mHeight = height;
     // prevmHeight = height;
 
+    std::cout << "Setting resolution to: " << width << "x" << height << "\n";
+
     if (mHEncoder != nullptr)
     {
+
+        std::cout << "Setting resolution for encoder\n";
         mEncoderInitializeParams.encodeWidth = width; // width only shows the cropped scene, 1920 works for 360p
         mEncoderInitializeParams.encodeHeight = height; // height;
         mEncoderInitializeParams.darWidth = width;
@@ -2344,10 +2523,9 @@ void EncodeDecode::setResolution(unsigned int width, unsigned int height)
         // memset(&reconfig_params, 0, sizeof(reconfig_params));
         reconfig_params.reInitEncodeParams = mEncoderInitializeParams;
         reconfig_params.resetEncoder = 0;
-        reconfig_params.forceIDR = 0;
+        reconfig_params.forceIDR = 1;
         reconfig_params.version = NV_ENC_RECONFIGURE_PARAMS_VER;
         NVENC_API_CALL(mNVEnc.nvEncReconfigureEncoder(mHEncoder, &reconfig_params));
-
     }
 }
 
@@ -2355,7 +2533,7 @@ void EncodeDecode::setResolution(unsigned int width, unsigned int height)
 void EncodeDecode::setSpeed(unsigned int input)
 {
     speed = input;
-    std::cout << "setSpeed  " << speed << "\n";
+    std::cout << "\n\n\nsetSpeed  " << speed << "\n";
 }
 
 
@@ -2444,31 +2622,10 @@ void EncodeDecode::renderRT(RenderContext* pRenderContext, const ref<Fbo>& pTarg
 
 int runMain(int argc, char** argv)
 {
-    unsigned int bitrate = std::stoi(argv[1]);
-    unsigned int framerate = std::stoi(argv[2]);
-    unsigned int width = std::stoi(argv[3]);
-    unsigned int height = std::stoi(argv[4]);
-    std::string scene = argv[5];
-    unsigned int speedInput = std::stoi(argv[6]);
-    std::string scenePath = argv[7];
+    unsigned int speedInput = std::stoi(argv[1]); // 6
 
-    // unsigned int width = 1920; // 1920 1280 640
-    // unsigned int height = 1080; // 1080 720 360
-    // unsigned int bitrate = 8000;
-    // unsigned int framerate = 60;
-    // std::string scene = "breakfast_room"; // lost_empire vokselia_spawn salle_de_bain breakfast_room suntemple_statue
     // unsigned int speedInput = 1;
-    // std::string scenePath = "breakfast_room/breakfast_room_05.fbx"; // no texture, objects are black suntemple_statue03
-
-    std::cout << "\n\nframerate runmain  " << framerate << "\n";
-    std::cout << "bitrate runmain  " << bitrate << "\n";
-    std::cout << "width runmain  " << width << "\n";
-    std::cout << "height runmain  " << height << "\n";
-    std::cout << "scene " << scene << std::endl;
-    std::cout << "speed " << speedInput << std::endl;
-    std::cout << "scenePath " << scenePath << std::endl;
-    //std::cout << "\n\nbitrate std::stoi(argv[1])  " << std::stoi(argv[1]) << "/n";
-    //std::cout << "\n\nnframerate std::stoi(argv[2])  " << std::stoi(argv[2]) << "/n";
+    // std::cout << "speed " << speedInput << std::endl;
 
     SampleAppConfig config;
     config.windowDesc.title = "EncodeDecode";
@@ -2476,25 +2633,13 @@ int runMain(int argc, char** argv)
     config.colorFormat = ResourceFormat::BGRA8Unorm;
     config.windowDesc.width = 1920; // width;
     config.windowDesc.height = 1080; // height;
+    config.windowDesc.enableVSync = false;
 
     EncodeDecode encodeDecode(config);
-    encodeDecode.setBitRate(bitrate * 1000); // 3000 bits per second,  3000 000 bits per second
-    encodeDecode.setFrameRate(framerate);
-    encodeDecode.setResolution(width, height);
-    encodeDecode.mWidth = width;
-    encodeDecode.mHeight = height;
-    // encodeDecode.setRefPrefix(scene, speedInput);
-    encodeDecode.setDefaultScene(scenePath);
+    encodeDecode.mWidth = 1920;
+    encodeDecode.mHeight = 1080;
     encodeDecode.setSpeed(speedInput);
 
-
-    if (encodeDecode.runONNXModel)
-    {
-        std::string filename = generateTimestampFilename(scene, std::to_string(speedInput) + "_" + std::to_string(encodeDecode.targetBitrate) + "kbps");
-        // std::string filename = generateTimestampFilename(scene, std::to_string(encodeDecode.targetBitrate) + "kbps");
-        std::cout << "filename is " << filename << std::endl;
-        encodeDecode.setNNOutputPrefix(filename);
-    }
 
     if (encodeDecode.recordExperiment) // only work if run from git bash
     {

@@ -68,7 +68,7 @@ void shadowAnyHit(inout ShadowRayData hitData, BuiltInTriangleIntersectionAttrib
 void primaryMiss(inout PrimaryRayData hitData)
 {
     // hitData.color = float4(0.38f, 0.52f, 0.10f, 1.f);
-    hitData.color = float4(0.71f, 0.95f, 0.95f, 1.f);
+    hitData.color = float4(0.5f, 0.7f, 4.f, 1.f);
     // hitData.color = float4(1.f, 1.f, 1.f, 1.f);
     // hitData.color = float4(0.99f, 0.99f, 0.99f, 1.f);
     hitData.hitT = -1.f;
@@ -132,6 +132,7 @@ void primaryClosestHit(inout PrimaryRayData hitData, BuiltInTriangleIntersection
     uint3 launchIndex = DispatchRaysIndex();
     TinyUniformSampleGenerator sg = TinyUniformSampleGenerator(launchIndex.xy, sampleIndex);
 
+
     // Direct lighting from analytic light sources.
     for (int i = 0; i < gScene.getLightCount(); i++)
     {
@@ -147,7 +148,7 @@ void primaryClosestHit(inout PrimaryRayData hitData, BuiltInTriangleIntersection
     }
 
     // Shoot a reflection ray.
-    // color += getReflectionColor(sd, bsdfProperties, v.normalW, rayDirW, hitData.depth);
+    // /color += getReflectionColor(sd, bsdfProperties, v.normalW, rayDirW, hitData.depth);
 
     hitData.color = float4(color, 1.f);
 
@@ -178,6 +179,7 @@ void rayGen()
     if (!useDOF)
     {
         ray = gScene.camera.computeRayPinhole(launchIndex.xy, viewportDims).toRayDesc();
+
     }
     else
     {

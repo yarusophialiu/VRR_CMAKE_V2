@@ -10,6 +10,7 @@
 #include "nvcuvid.h"
 #include "cuviddec.h"
 #include "FramePresenterD3D11.h"
+#include "experiment.h"
 
 
 #include "Falcor.h"
@@ -85,6 +86,13 @@ struct NvEncInputFrame
     NV_ENC_BUFFER_FORMAT bufferFormat;
     NV_ENC_INPUT_RESOURCE_TYPE resourceType;
 };
+
+
+// std::vector<int> bitrates = {500, 1000, 2000, 4000, 8000};
+std::vector<int> bitrates = {2000};
+// std::vector<std::string> sceneNames = {"sibenik", "vokseliaspawn", "breakfastroom", "salledebain"};
+std::vector<std::string> sceneNames = {"sibenik", "vokseliaspawn"};
+int pathsPerScene = 1; // 3
 
 class EncodeDecode : public SampleApp
 {
@@ -508,6 +516,8 @@ public:
     uint32_t patchHeight = 128;
     int mResolutionChange = 0;
 
+    ExperimentCondition mCurrentCondition;
+    std::vector<ExperimentCondition> mConditions;
     std::vector<ref<Scene>> mpScenes;
     ref<Scene> mpScene;
     ref<Camera> mpCamera;
@@ -539,28 +549,36 @@ public:
     bool outputDecodedFrames = false;   // output as bmp file
     bool outputReferenceFrames = false; // output Falcor rendered frames as bmp file
 
-    int targetBitrate = 3000;
-    bool runONNXModel = false; // if false, change csv file and bitrate to targetbitrate, if true set fps to 166, doesnt care about vrron
-    bool vrrON = true; // false true, if true, set runONNXModel to false, change csv, bitrate, fps
+    int targetBitrate; //  = 3000;
+    bool runONNXModel = true; // if false, change csv file and bitrate to targetbitrate, if true set fps to 166, doesnt care about vrron
+    bool vrrON = false; // false true, if true, set runONNXModel to false, change csv in csvPaths, bitrate, fps
     bool recordExperiment = false;
     bool resetBaseline = false; // set to standard approach 1080p 60fps
     bool switchCondition = false;
 
+    unsigned int mCurrentTrial = 0;
+
     // suntemple_statue01_1_2000kbps_1103_1601
     std::string nnOuputCSVFolder = "C:/Users/15142/new/Falcor/Source/Samples/EncodeDecode/nnOutput/";
-    std::string csvFile = nnOuputCSVFolder + "sibenik_12_3_3000kbps_1208_2032.csv"; //lost_empire_1_5000kbps_1030_1945.csv";
-    // std::string csvFile0 = nnOuputCSVFolder + "suntemple_statue01_1_2000kbps_1103_1601.csv";
-    // std::map<int, std::string> csvDictionary = {{0, csvFile0}};
+    // std::string csvFile = nnOuputCSVFolder + "sibenik_12_3_3000kbps_1208_2032.csv"; //lost_empire_1_5000kbps_1030_1945.csv";
+
+    // std::string csvFile0 = nnOuputCSVFolder + "sibenik_12_3_3000kbps_1208_2032.csv";
+    // std::string csvFile1 = nnOuputCSVFolder + "breakfast_room_05_1_500kbps_1206_1605.csv";
+    // std::map<int, std::string> csvDictionary = {{0, csvFile0}, {1, csvFile1}};
     // std::map<int, int> reverse_res_map = {{0, 360}, {1, 480}, {2, 720}, {3, 864}, {4, 1080}};
     // bool showDecode = true;
-    std::vector<std::filesystem::path> scenePaths = {
-        "suntemple_statue/suntemple_statue01.fbx",
-        "breakfast_room/breakfast_room_05.fbx",
-        // "path/to/scene2.fbx",
-        // "path/to/scene3.fbx"
-    };
+    // std::vector<std::filesystem::path> scenePaths = {
+    //     "sponza/sponza_05.fbx",
+    //     "vokseliaspawn/vokseliaspawn_03.fbx",
+    // };
+
+    // std::vector<std::string> csvPaths = {
+    //     nnOuputCSVFolder + "sponza_05_1_4000kbps_1209_1143.csv",
+    //     nnOuputCSVFolder + "vokseliaspawn_03_1_500kbps_1209_1041.csv"
+    //     // nnOuputCSVFolder + "breakfast_room_05_1_500kbps_1206_1605.csv"
+    // };
     int pairIndex = 0;
-    void loadAllScenes(const std::vector<std::filesystem::path>& paths, const Fbo* pTargetFbo);
+    void loadAllScenes();
 
 
     uint32_t mSampleIndex = 0xdeadbeef;
@@ -582,6 +600,9 @@ public:
                           std::vector<float>& outputResTensorValues, std::vector<float>& outputFpsTensorValues);
     void processNNOutput(std::vector<float>& outputResTensorValues, std::vector<float>& outputFpsTensorValues,
                          std::vector<float>& res_probabilities, std::vector<float>& fps_probabilities);
+    void initPairList();
+    std::string getInferenceFileNameForStimulus(ExperimentStimulus* stimulus);
+    void switchToNextPair();
     void appendChoiceToCsv();
     void appendRowToCsv(int frameNumber, const std::vector<float>& res_probabilities, const std::vector<float>& fps_probabilities);
     void readCsv(const std::string& filename,
@@ -592,7 +613,6 @@ public:
     void testKeyChange();
     void changeFpsResolution();
     float computePatchVelocity(RenderContext* pRenderContext, int startX, int startY);
-
 
 
     const char* refBaseFilePath = "refOutputBMP/";
