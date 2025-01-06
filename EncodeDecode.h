@@ -87,12 +87,14 @@ struct NvEncInputFrame
     NV_ENC_INPUT_RESOURCE_TYPE resourceType;
 };
 
-
+// bitrates used in initPairList() in constructor
 // std::vector<int> bitrates = {500, 1000, 2000, 4000, 8000};
-std::vector<int> bitrates = {2000};
-// std::vector<std::string> sceneNames = {"sibenik", "vokseliaspawn", "breakfastroom", "salledebain"};
-std::vector<std::string> sceneNames = {"sibenik", "vokseliaspawn"};
+std::vector<int> bitrates = {500};
+// std::vector<std::string> sceneNames = {"sibenik", "breakfastroom", "salledebain"};
+std::vector<std::string> sceneNames = {"breakfastroom"}; // "breakfastroom_0_1000kbps"
 int pathsPerScene = 1; // 3
+float bias = 0.0f;
+
 
 class EncodeDecode : public SampleApp
 {
@@ -115,7 +117,7 @@ public:
     void setBitRate(unsigned int br);    // Setter for bitRate
     void setFrameRate(unsigned int fps); // Setter for frameRate
     void setResolution(unsigned int width, unsigned int height); // Setter for frameRate
-    void setSpeed(unsigned int speed); // Setter for frameRate
+    void setSpeed(float speed); // Setter for frameRate
     void setSceneName(std::string sceneName); // Setter for frameRate
     void setRefPrefix(std::string scene, unsigned int Input);
     void setMotionPrefix(std::string scene, unsigned int Input, unsigned int framerate, unsigned int bitrate, unsigned int height);
@@ -423,6 +425,9 @@ private:
 
     // ID3D12Resource* mPDecoderOutputTexture360;
     ref<Texture> mPDecoderOutputTexture1080;
+    cudaMipmappedArray_t mpCudaDecoderOuputTexture;
+    cudaExternalMemory_t mCudaExternalMemoryDecoderOutputTexture;
+    cudaSurfaceObject_t mpCudaDecoderOutputSurface {0};
 
     // mprtout blit into these encoding texture
     ref<Texture> mPEncoderInputTexture360;
@@ -475,7 +480,7 @@ public:
     uint32_t inputWidth;
     // uint32_t inputElementSize;
     // dummy_4channel_novar.onnx   vrr_classification_float32_4channel
-    std::filesystem::path modelPath = "C:/Users/15142/new/Falcor/Source/Samples/EncodeDecode/smaller_vrr_fp32.onnx"; //smaller_vrr_fp32.onnx";
+    std::filesystem::path modelPath = "C:/Users/15142/new/Falcor/Source/Samples/EncodeDecode/vrr_fp32.onnx"; //vrr_fp32.onnx";
     // std::vector<int64_t> inputShape;
     // auto outputName;
     // auto outputTypeInfo;
@@ -516,12 +521,20 @@ public:
     uint32_t patchHeight = 128;
     int mResolutionChange = 0;
 
+    enum class stimuli_state_t {
+
+        BASELINE,
+        ADAPTIVE
+    };
+
+    stimuli_state_t stimuliState;
     ExperimentCondition mCurrentCondition;
     std::vector<ExperimentCondition> mConditions;
     std::vector<ref<Scene>> mpScenes;
     ref<Scene> mpScene;
     ref<Camera> mpCamera;
     std::unique_ptr<CameraController> mpCamCtrl;
+    uint8_t mSwitchOnNext = 0;
 
     ref<RasterPass> mpRasterPass;
     ref<RenderGraph> mpRenderGraph;
@@ -542,6 +555,7 @@ public:
     // const OrtDmlApi* ortDmlApi;
 
 
+    std::string observerId = "rkm36";
 
     bool mRayTrace = true;
     bool mUseDOF = false;
@@ -550,33 +564,18 @@ public:
     bool outputReferenceFrames = false; // output Falcor rendered frames as bmp file
 
     int targetBitrate; //  = 3000;
-    bool runONNXModel = true; // if false, change csv file and bitrate to targetbitrate, if true set fps to 166, doesnt care about vrron
-    bool vrrON = false; // false true, if true, set runONNXModel to false, change csv in csvPaths, bitrate, fps
-    bool recordExperiment = false;
+    bool runONNXModel = false; // if false, change csv file and bitrate to targetbitrate, if true set fps to 166, doesnt care about vrron
+    bool vrrON = true; // false true, if true, set runONNXModel to false, change csv in csvPaths, bitrate, fps
+    bool recordExperiment = true;
     bool resetBaseline = false; // set to standard approach 1080p 60fps
     bool switchCondition = false;
 
     unsigned int mCurrentTrial = 0;
 
     // suntemple_statue01_1_2000kbps_1103_1601
-    std::string nnOuputCSVFolder = "C:/Users/15142/new/Falcor/Source/Samples/EncodeDecode/nnOutput/";
-    // std::string csvFile = nnOuputCSVFolder + "sibenik_12_3_3000kbps_1208_2032.csv"; //lost_empire_1_5000kbps_1030_1945.csv";
-
-    // std::string csvFile0 = nnOuputCSVFolder + "sibenik_12_3_3000kbps_1208_2032.csv";
-    // std::string csvFile1 = nnOuputCSVFolder + "breakfast_room_05_1_500kbps_1206_1605.csv";
-    // std::map<int, std::string> csvDictionary = {{0, csvFile0}, {1, csvFile1}};
-    // std::map<int, int> reverse_res_map = {{0, 360}, {1, 480}, {2, 720}, {3, 864}, {4, 1080}};
-    // bool showDecode = true;
-    // std::vector<std::filesystem::path> scenePaths = {
-    //     "sponza/sponza_05.fbx",
-    //     "vokseliaspawn/vokseliaspawn_03.fbx",
-    // };
-
-    // std::vector<std::string> csvPaths = {
-    //     nnOuputCSVFolder + "sponza_05_1_4000kbps_1209_1143.csv",
-    //     nnOuputCSVFolder + "vokseliaspawn_03_1_500kbps_1209_1041.csv"
-    //     // nnOuputCSVFolder + "breakfast_room_05_1_500kbps_1206_1605.csv"
-    // };
+    // TODO
+    std::string nnOuputCSVFolder = "C:/Users/15142/new/Falcor/Source/Samples/EncodeDecode/nnOutput/patch-data-1-CSV-bias0/"; // original-model sibenik-slow-original-smaller-07/
+    //std::string nnOuputCSVFolder = "nnOutput/"; // original-model sibenik-slow-original-smaller-07/
     int pairIndex = 0;
     void loadAllScenes();
 
@@ -596,6 +595,8 @@ public:
     std::vector<int> frameNumbersCSV;
     std::vector<std::vector<float>> resProbabilitiesCSV;
     std::vector<std::vector<float>> fpsProbabilitiesCSV;
+    std::vector<int> resolutionCSV;
+    std::vector<int> fpsCSV;
     void runONNXInference(RenderContext* pRenderContext, int startX, int startY, float patchVelocity,
                           std::vector<float>& outputResTensorValues, std::vector<float>& outputFpsTensorValues);
     void processNNOutput(std::vector<float>& outputResTensorValues, std::vector<float>& outputFpsTensorValues,
@@ -608,7 +609,9 @@ public:
     void readCsv(const std::string& filename,
              std::vector<int>& frameNumbers,
              std::vector<std::vector<float>>& resProbabilities,
-             std::vector<std::vector<float>>& fpsProbabilities);
+             std::vector<std::vector<float>>& fpsProbabilities,
+             std::vector<int>& resolutionCSV,
+             std::vector<int>& fpsCSV);
     bool getProbabilitiesForFrame(int frameNumber, std::vector<float>& resProbabilities, std::vector<float>& fpsProbabilities);
     void testKeyChange();
     void changeFpsResolution();
@@ -630,7 +633,8 @@ public:
     signed int frameRate;
     uint32_t frameLimit;
     unsigned int bitRate;
-    unsigned int speed;
+    // unsigned int speed;
+    float speed;
     double mTimeSecs = 0.0;
     int mTimeFrames = 0;
     int currentSceneIdx = 0;
@@ -654,7 +658,6 @@ public:
 
     RenderContext* mpRenderContextDecode = nullptr;
     // std::chrono::steady_clock::time_point last_send_time = std::chrono::steady_clock::now();
-
 
     // const Math::float3& incre = float3(0.00088767 - 0.00192412 - 0.00504681);
 };
