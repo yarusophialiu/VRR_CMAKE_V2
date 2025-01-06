@@ -73,3 +73,5 @@ union RGBA64 {
         uint16_t r, g, b, a;
     } c;
 };
+
+void MyNv12ToColor32(uint8_t *dpNv12, int nNv12Pitch, cudaSurfaceObject_t  dpBgra, int nBgraPitch, int nWidth, int nHeight);

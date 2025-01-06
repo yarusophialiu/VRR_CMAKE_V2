@@ -106,16 +106,16 @@ __device__ static T Clamp(T x, T lower, T upper) {
 
 template<class Rgb, class YuvUnit>
 __device__ inline Rgb YuvToRgbForPixel(YuvUnit y, YuvUnit u, YuvUnit v) {
-    const int 
+    const int
         low = 1 << (sizeof(YuvUnit) * 8 - 4),
         mid = 1 << (sizeof(YuvUnit) * 8 - 1);
     float fy = (int)y - low, fu = (int)u - mid, fv = (int)v - mid;
     const float maxf = (1 << sizeof(YuvUnit) * 8) - 1.0f;
-    YuvUnit 
+    YuvUnit
         r = (YuvUnit)Clamp(matYuv2Rgb[0][0] * fy + matYuv2Rgb[0][1] * fu + matYuv2Rgb[0][2] * fv, 0.0f, maxf),
         g = (YuvUnit)Clamp(matYuv2Rgb[1][0] * fy + matYuv2Rgb[1][1] * fu + matYuv2Rgb[1][2] * fv, 0.0f, maxf),
         b = (YuvUnit)Clamp(matYuv2Rgb[2][0] * fy + matYuv2Rgb[2][1] * fu + matYuv2Rgb[2][2] * fv, 0.0f, maxf);
-    
+
     Rgb rgb{};
     const int nShift = abs((int)sizeof(YuvUnit) - (int)sizeof(rgb.c.r)) * 8;
     if (sizeof(YuvUnit) >= sizeof(rgb.c.r)) {
@@ -150,10 +150,12 @@ __global__ static void YuvToRgbKernel(uint8_t *pYuv, int nYuvPitch, uint8_t *pRg
         YuvToRgbForPixel<Rgb>(l0.y, ch.x, ch.y).d,
     };
     *(RgbIntx2 *)(pDst + nRgbPitch) = RgbIntx2 {
-        YuvToRgbForPixel<Rgb>(l1.x, ch.x, ch.y).d, 
+        YuvToRgbForPixel<Rgb>(l1.x, ch.x, ch.y).d,
         YuvToRgbForPixel<Rgb>(l1.y, ch.x, ch.y).d,
     };
 }
+
+
 
 template<class YuvUnitx2, class Rgb, class RgbIntx2>
 __global__ static void Yuv444ToRgbKernel(uint8_t *pYuv, int nYuvPitch, uint8_t *pRgb, int nRgbPitch, int nWidth, int nHeight) {
@@ -234,12 +236,74 @@ __global__ static void Yuv444ToRgbPlanarKernel(uint8_t *pYuv, int nYuvPitch, uin
     *(RgbUnitx2 *)pDst = RgbUnitx2{ rgb0.v.z, rgb1.v.z };
 }
 
-template <class COLOR32>
-void Nv12ToColor32(uint8_t *dpNv12, int nNv12Pitch, uint8_t *dpBgra, int nBgraPitch, int nWidth, int nHeight, int iMatrix) {
-    SetMatYuv2Rgb(iMatrix);
-    YuvToRgbKernel<uchar2, COLOR32, uint2>
+
+template<class YuvUnitx2, class Rgb, class RgbIntx2>
+__global__ static void YuvToRgbKernel(uint8_t *pYuv, int nYuvPitch, cudaSurfaceObject_t pRgb, int nRgbPitch, int nWidth, int nHeight) {
+    int x = (threadIdx.x + blockIdx.x * blockDim.x) * 2;
+    int y = (threadIdx.y + blockIdx.y * blockDim.y) * 2;
+    // int x = threadIdx.x;
+    // int y = threadIdx.y;
+    if (x + 1 >= nWidth || y + 1 >= nHeight) {
+        return;
+    }
+
+    uint8_t *pSrc = pYuv + x * sizeof(YuvUnitx2) / 2 + y * nYuvPitch;
+    // uint8_t *pDst = pRgb + x * sizeof(Rgb) + y * nRgbPitch;
+
+    YuvUnitx2 l0 = *(YuvUnitx2 *)pSrc;
+    YuvUnitx2 l1 = *(YuvUnitx2 *)(pSrc + nYuvPitch);
+    YuvUnitx2 ch = *(YuvUnitx2 *)(pSrc + (nHeight - y / 2) * nYuvPitch);
+
+    Rgb p1 = YuvToRgbForPixel<Rgb>(l0.x, ch.x, ch.y);
+    Rgb p2 = YuvToRgbForPixel<Rgb>(l0.y, ch.x, ch.y);
+    Rgb p3 = YuvToRgbForPixel<Rgb>(l1.x, ch.x, ch.y);
+    Rgb p4 = YuvToRgbForPixel<Rgb>(l1.y, ch.x, ch.y);
+
+    // *(RgbIntx2 *)pDst = RgbIntx2 {
+    //     YuvToRgbForPixel<Rgb>(l0.x, ch.x, ch.y).d,
+    //     YuvToRgbForPixel<Rgb>(l0.y, ch.x, ch.y).d,
+    // };
+    // *(RgbIntx2 *)(pDst + nRgbPitch) = RgbIntx2 {
+    //     YuvToRgbForPixel<Rgb>(l1.x, ch.x, ch.y).d,
+    //     YuvToRgbForPixel<Rgb>(l1.y, ch.x, ch.y).d,
+    // };
+
+    uchar4 pixel1;
+    pixel1.x = p1.c.b;
+    pixel1.y = p1.c.g;
+    pixel1.z = p1.c.r;
+
+    uchar4 pixel2;
+    pixel2.x = p2.c.b;
+    pixel2.y = p2.c.g;
+    pixel2.z = p2.c.r;
+
+    uchar4 pixel3;
+    pixel3.x = p3.c.b;
+    pixel3.y = p3.c.g;
+    pixel3.z = p3.c.r;
+
+    uchar4 pixel4;
+    pixel4.x = p4.c.b;
+    pixel4.y = p4.c.g;
+    pixel4.z = p4.c.r;
+
+    surf2Dwrite(pixel1, pRgb, (int)sizeof(uchar4)*x, y);
+    surf2Dwrite(pixel2, pRgb, (int)sizeof(uchar4)*(x + 1), y);
+    surf2Dwrite(pixel3, pRgb, (int)sizeof(uchar4)*x, y + 1);
+    surf2Dwrite(pixel4, pRgb, (int)sizeof(uchar4)*(x + 1), y + 1);
+}
+
+// template <class COLOR32>
+void MyNv12ToColor32(uint8_t *dpNv12, int nNv12Pitch, cudaSurfaceObject_t  dpBgra, int nBgraPitch, int nWidth, int nHeight) {
+    SetMatYuv2Rgb(0);
+    YuvToRgbKernel<uchar2, BGRA32, uint2>
         <<<dim3((nWidth + 63) / 32 / 2, (nHeight + 3) / 2 / 2), dim3(32, 2)>>>
         (dpNv12, nNv12Pitch, dpBgra, nBgraPitch, nWidth, nHeight);
+    // YuvToRgbKernel<uchar2, BGRA32, uint2>
+    //     <<<dim3(1, 1, 1), dim3(16, 16, 1)>>>
+    //     (dpNv12, nNv12Pitch, dpBgra, nBgraPitch, nWidth, nHeight);
+
 }
 
 template <class COLOR64>
@@ -331,8 +395,8 @@ void YUV444P16ToColorPlanar(uint8_t *dpYUV444, int nPitch, uint8_t *dpBgrp, int 
 }
 
 // Explicit Instantiation
-template void Nv12ToColor32<BGRA32>(uint8_t *dpNv12, int nNv12Pitch, uint8_t *dpBgra, int nBgraPitch, int nWidth, int nHeight, int iMatrix);
-template void Nv12ToColor32<RGBA32>(uint8_t *dpNv12, int nNv12Pitch, uint8_t *dpBgra, int nBgraPitch, int nWidth, int nHeight, int iMatrix);
+// template void MyNv12ToColor32<BGRA32>(uint8_t *dpNv12, int nNv12Pitch, cudaSurfaceObject_t dpBgra, int nBgraPitch, int nWidth, int nHeight, int iMatrix);
+// template void Nv12ToColor32<RGBA32>(uint8_t *dpNv12, int nNv12Pitch, cudaSurfaceObject_t dpBgra, int nBgraPitch, int nWidth, int nHeight, int iMatrix);
 template void Nv12ToColor64<BGRA64>(uint8_t *dpNv12, int nNv12Pitch, uint8_t *dpBgra, int nBgraPitch, int nWidth, int nHeight, int iMatrix);
 template void Nv12ToColor64<RGBA64>(uint8_t *dpNv12, int nNv12Pitch, uint8_t *dpBgra, int nBgraPitch, int nWidth, int nHeight, int iMatrix);
 template void YUV444ToColor32<BGRA32>(uint8_t *dpYUV444, int nPitch, uint8_t *dpBgra, int nBgraPitch, int nWidth, int nHeight, int iMatrix);
@@ -374,6 +438,7 @@ __device__ inline YuvUnit RgbToV(RgbUnit r, RgbUnit g, RgbUnit b) {
     return matRgb2Yuv[2][0] * r + matRgb2Yuv[2][1] * g + matRgb2Yuv[2][2] * b + mid;
 }
 
+// joe
 template<class YuvUnitx2, class Rgb, class RgbIntx2>
 __global__ static void RgbToYuvKernel(uint8_t *pRgb, int nRgbPitch, uint8_t *pYuv, int nYuvPitch, int nWidth, int nHeight) {
     int x = (threadIdx.x + blockIdx.x * blockDim.x) * 2;
@@ -402,7 +467,7 @@ __global__ static void RgbToYuvKernel(uint8_t *pRgb, int nRgbPitch, uint8_t *pYu
         RgbToY<decltype(YuvUnitx2::x)>(rgb[3].c.r, rgb[3].c.g, rgb[3].c.b),
     };
     *(YuvUnitx2 *)(pDst + (nHeight - y / 2) * nYuvPitch) = YuvUnitx2 {
-        RgbToU<decltype(YuvUnitx2::x)>(r, g, b), 
+        RgbToU<decltype(YuvUnitx2::x)>(r, g, b),
         RgbToV<decltype(YuvUnitx2::x)>(r, g, b),
     };
 }

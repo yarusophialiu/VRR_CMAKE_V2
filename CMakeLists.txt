@@ -44,16 +44,20 @@ target_include_directories(EncodeDecode PRIVATE
 
 link_directories("C:/Users/15142/.nuget/packages/microsoft.ml.onnxruntime.directml/1.20.0/build/native")
 
+target_link_libraries( EncodeDecode PUBLIC
+    windowsapp.lib
+    )
+
 target_link_libraries(EncodeDecode PRIVATE
+    #CUDA::cudart
     ${NVENC_SDK_LIB_DIR}/nvcuvid.lib
     ${NVENC_SDK_LIB_DIR}/nvencodeapi.lib
     # ${NVENC_CURL_LIB_DIR}/libcurl.dll.a
     ${ONNXRUNTIME_NATIVE}/onnxruntime.lib
     # ${ONNXRUNTIME_NATIVE}/onnxruntime.dll # DLL files should not be linked directly; they are dynamic libraries that are loaded at runtime, instead link lib
-    CUDA::cudart
     ColorSpace
-    d3d11.lib
     dxgi.lib
+    advapi32.lib
 )
 
 target_copy_shaders(EncodeDecode Samples/EncodeDecode)
