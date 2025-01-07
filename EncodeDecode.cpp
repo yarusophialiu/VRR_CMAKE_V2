@@ -520,8 +520,9 @@ void EncodeDecode::onLoad(RenderContext* pRenderContext)
     // set bitrate, scene for the first pair
     std::cout << "onloading mCurrentTrial " << mCurrentTrial << std::endl;
     mCurrentCondition = mConditions[mCurrentTrial];
+    std::string inferenceDir = getInferencePathNameForStimulus(&mCurrentCondition.stimulus1);
     std::string inferenceFileNmame = getInferenceFileNameForStimulus(&mCurrentCondition.stimulus1);
-    std::string inferenceFilePath = nnOuputCSVFolder + inferenceFileNmame;
+    std::string inferenceFilePath = inferenceDir + inferenceFileNmame;
     readCsv(inferenceFilePath, frameNumbersCSV, resProbabilitiesCSV, fpsProbabilitiesCSV, resolutionCSV, fpsCSV);
 
     std::cout << "switchToNextPair readCsv Resolutions: ";
@@ -537,15 +538,20 @@ void EncodeDecode::onLoad(RenderContext* pRenderContext)
     }
     std::cout << std::endl;
 
-    std::cout << "inferenceFilePath " << inferenceFilePath << std::endl;
+    std::cout << "\n\n\n!!!!!!!!!!!!!!!!!!!!!!!!!inferenceFilePath " << inferenceFilePath << std::endl;
 
     setScene(mCurrentCondition.stimulus1.sceneIndex);
-    setResolution(1920, 1080);
     setFrameRate(60);
 
     if (runONNXModel)
         setFrameRate(166);
     setBitRate(mCurrentCondition.stimulus1.bitrate);
+    setSpeed(mCurrentCondition.stimulus1.speed);
+    if (mCurrentCondition.stimulus1.bitrate > 5000) {
+        setResolution(1920, 1080);
+    } else {
+       setResolution(1280, 720);
+    }
     // loadScene(kDefaultScene, getTargetFbo().get());
 
 
@@ -808,30 +814,42 @@ void EncodeDecode::initPairList() {
     for (int i = 0; i < bitrates.size(); ++i) {
         for (int j = 0; j < sceneNames.size(); ++j) {
             for (int k = 0; k < pathsPerScene; ++k) {
-                // Here we assume all base conditions are 1080p60, we may want to change that
+                for (int s = 0; s < speeds.size(); ++s) {
+                    // Here we assume all base conditions are 1080p60, we may want to change that
 
-                ExperimentStimulus s1;
-                ExperimentStimulus s2;
-                ExperimentCondition condition;
+                    ExperimentStimulus s1;
+                    ExperimentStimulus s2;
+                    ExperimentCondition condition;
 
-                s1.sceneName = sceneNames[j];
-                s1.sceneIndex = j * pathsPerScene + k;
-                s1.pathIndex = k;
-                s1.bitrate = bitrates[i];
-                s1.resolution = -1;
-                s1.framerate = -1;
+                    s1.sceneName = sceneNames[j];
+                    s1.sceneIndex = j * pathsPerScene + k;
+                    s1.pathIndex = k;
+                    s1.bitrate = bitrates[i];
+                    s1.resolution = -1;
+                    s1.framerate = -1;
+                    s1.speed = speeds[s];
 
-                s2.sceneName = sceneNames[j];
-                s2.sceneIndex = j * pathsPerScene + k;
-                s2.pathIndex = k;
-                s2.bitrate = bitrates[i];
-                s2.resolution = 1080;
-                s2.framerate = 60;
+                    s2.sceneName = sceneNames[j];
+                    s2.sceneIndex = j * pathsPerScene + k;
+                    s2.pathIndex = k;
+                    s2.bitrate = bitrates[i];
+                    s2.speed = speeds[s];
 
-                condition.stimulus1 = s1;
-                condition.stimulus2 = s2;
+                    if (bitrates[i] > 5000) {
+                        s2.resolution = 1080;
+                    } else {
 
-                mConditions.push_back(condition);
+                        s2.resolution = 720;
+                    }
+
+                    // s2.resolution = 1080;
+                    s2.framerate = 60;
+                    condition.stimulus1 = s1;
+                    condition.stimulus2 = s2;
+
+                    mConditions.push_back(condition);
+
+                }
             }
         }
     }
@@ -839,9 +857,10 @@ void EncodeDecode::initPairList() {
     // auto rng = std::default_random_engine {};
     // std::shuffle(std::begin(mConditions), std::end(mConditions), rng);
 
-    srand(unsigned(time(NULL)));
-    auto rng = std::default_random_engine {};
-    std::shuffle(mConditions.begin(), mConditions.end(), rng);
+    std::random_device r;
+    std::seed_seq seed{r(), r(), r(), r(), r(), r(), r(), r()};
+    std::mt19937 eng(seed);
+    std::shuffle(mConditions.begin(), mConditions.end(), eng);
 }
 
 
@@ -858,6 +877,22 @@ std::string EncodeDecode::getInferenceFileNameForStimulus(ExperimentStimulus* st
 }
 
 
+std::string EncodeDecode::getInferencePathNameForStimulus(ExperimentStimulus* stimulus) {
+
+    if (stimulus->speed == 0.5) {
+        return "C:/Users/15142/new/Falcor/Source/Samples/EncodeDecode/nnOutput/patch-data-05-CSV-bias5/";
+    } else if (stimulus->speed == 1) {
+
+        return "C:/Users/15142/new/Falcor/Source/Samples/EncodeDecode/nnOutput/patch-data-1-CSV-bias5/";
+    } else if (stimulus->speed == 2) {
+
+        return "C:/Users/15142/new/Falcor/Source/Samples/EncodeDecode/nnOutput/patch-data-2-CSV-bias5/";
+    }
+
+    return "";
+}
+
+
 void EncodeDecode::switchToNextPair() {
 
     ++mCurrentTrial;
@@ -866,8 +901,9 @@ void EncodeDecode::switchToNextPair() {
 
     mCurrentCondition = mConditions[mCurrentTrial];
 
+    std::string inferenceDir = getInferencePathNameForStimulus(&mCurrentCondition.stimulus1);
     std::string inferenceFileNmame = getInferenceFileNameForStimulus(&mCurrentCondition.stimulus1);
-    std::string inferenceFilePath = nnOuputCSVFolder + inferenceFileNmame;
+    std::string inferenceFilePath = inferenceDir + inferenceFileNmame;
     readCsv(inferenceFilePath, frameNumbersCSV, resProbabilitiesCSV, fpsProbabilitiesCSV, resolutionCSV, fpsCSV);
     std::cout << "switchToNextPair readCsv Resolutions: ";
     for (const auto& res : resolutionCSV) {
@@ -893,7 +929,12 @@ void EncodeDecode::switchToNextPair() {
 
 
     setScene(mCurrentCondition.stimulus1.sceneIndex);
-    setResolution(1920, 1080);
+    setSpeed(mCurrentCondition.stimulus1.speed);
+    if (mCurrentCondition.stimulus1.bitrate > 5000) {
+        setResolution(1920, 1080);
+    } else {
+        setResolution(1280, 720);
+    }
     setFrameRate(60);
     setBitRate(mCurrentCondition.stimulus1.bitrate);
     mTimeSecs = 0;
@@ -901,6 +942,22 @@ void EncodeDecode::switchToNextPair() {
 
     mOldWidth = 1920;
     mOldHeight = 1080;
+
+    std::srand(std::time(0));
+    bothViewed = false;
+    switchAB = (std::rand() % 2) == 0;
+
+    if (!switchAB) {
+
+        vrrON = true;
+        stimuliState = stimuli_state_t::ADAPTIVE;
+    } else {
+
+        vrrON = false;
+        stimuliState = stimuli_state_t::BASELINE;
+        resetBaseline = true;
+    }
+
 }
 
 
@@ -916,7 +973,7 @@ void EncodeDecode::appendChoiceToCsv()
     }
 
 
-    file << observerId << "," << mCurrentCondition.stimulus1.sceneName << "," << mCurrentCondition.stimulus1.bitrate << "," << speed << bias << ((vrrON)? "1" : "0")  << "\n"; // End of the row
+    file << observerId << "," << mCurrentCondition.stimulus1.sceneName << "," << mCurrentCondition.stimulus1.bitrate << "," << speed << "," << bias << "," << ((vrrON)? "1" : "0")  << "\n"; // End of the row
     file.close();
 }
 
@@ -1168,14 +1225,14 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
 
         if (!runONNXModel) {
             // getAnimationDurationSecs: calculates the maximum duration of all animations in a Scene object
-            if (mTimeSecs >= mpScene->getAnimationDurationSecs() / speed) {
+            if (mTimeSecs >= mpScene->getAnimationDurationSecs() / mCurrentCondition.stimulus1.speed) {
                 mTimeFrames = 0;
                 mTimeSecs = 0;
             }
         }
 
 
-        Scene::UpdateFlags updates = mpScene->update(pRenderContext, speed * mTimeSecs); // 2* timesec, 0.5
+        Scene::UpdateFlags updates = mpScene->update(pRenderContext, mCurrentCondition.stimulus1.speed * mTimeSecs); // 2* timesec, 0.5
         std::cout << "Scene animation duration(s): " << mpScene->getAnimationDurationSecs() << "\n";
         if (is_set(updates, Scene::UpdateFlags::GeometryChanged))
             FALCOR_THROW("This sample does not support scene geometry changes.");
@@ -1220,6 +1277,7 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
             std::cout << "bitrate : " << bitRate << "\n";
             std::cout << "resolution : " << mWidth << "x" << mHeight << "\n";
             std::cout << "framerate : " << frameRate << "\n";
+            std::cout << "speed : " << speed << "\n";
 
             if (mDecodeLock != 0)
             {
@@ -1274,7 +1332,7 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
 
                 std::tie(selectedFps, selectedWidth, selectedHeight) = shouldChangeSettings(frameRate, mHeight, fps_probabilities, res_probabilities);
 
-                if (mTimeSecs >= mpScene->getAnimationDurationSecs() / speed) {
+                if (mTimeSecs >= mpScene->getAnimationDurationSecs() / mCurrentCondition.stimulus1.speed) {
 
                     if (mCurrentTrial >= mConditions.size() - 1) {
 
@@ -1313,12 +1371,12 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
         }
 
         mTimeFrames += 1;
-        mTimeSecs += 1.0 / frameRate;
+        mTimeSecs += 1.0 / mEstimatedFramerate;
     }
 
     std::string stimuliString = "A";
 
-    if (stimuliState == stimuli_state_t::BASELINE)
+    if ((stimuliState == stimuli_state_t::BASELINE && !switchAB) || (stimuliState == stimuli_state_t::ADAPTIVE && switchAB))
         stimuliString = "B";
 
 
@@ -1353,26 +1411,45 @@ bool EncodeDecode::onKeyEvent(const KeyboardEvent& keyEvent)
     if (keyEvent.type != KeyboardEvent::Type::KeyPressed)
         return false;
 
-    if (keyEvent.key == Falcor::Input::Key::Left && stimuliState != stimuli_state_t::ADAPTIVE) {
+    if (keyEvent.key == Falcor::Input::Key::Left) {
         // mResolutionChange = 1;
-        vrrON = true;
+        if (!switchAB) {
+
+            vrrON = true;
+            stimuliState = stimuli_state_t::ADAPTIVE;
+        } else {
+
+            vrrON = false;
+            stimuliState = stimuli_state_t::BASELINE;
+            resetBaseline = true;
+        }
+
         mTimeFrames = 0;
         mTimeSecs = 0;
         switchCondition = true;
-        stimuliState = stimuli_state_t::ADAPTIVE;
         return true;
-    } else if (keyEvent.key == Falcor::Input::Key::Right && stimuliState != stimuli_state_t::BASELINE) {
+    } else if (keyEvent.key == Falcor::Input::Key::Right) {
         // change resolution and framerate to 1080p 60?
         // mResolutionChange = -1;
-        vrrON = false;
+
+        if (switchAB) {
+
+            vrrON = true;
+            stimuliState = stimuli_state_t::ADAPTIVE;
+        } else {
+
+            vrrON = false;
+            stimuliState = stimuli_state_t::BASELINE;
+            resetBaseline = true;
+        }
+
         mTimeFrames = 0;
         mTimeSecs = 0;
-        resetBaseline = true;
         switchCondition = true;
-        stimuliState = stimuli_state_t::BASELINE;
+        bothViewed = true;
         //currentSceneIdx += 1;
         return true;
-    } else if (keyEvent.key == Falcor::Input::Key::Space && keyEvent.type == KeyboardEvent::Type::KeyPressed) {
+    } else if (keyEvent.key == Falcor::Input::Key::Space && bothViewed) {
         //Record choice here experimentFilename
         std::cout << "mCurrentTrial " << mCurrentTrial << std::endl;
         std::cout << "mCurrentTrial " << mCurrentTrial << std::endl;
@@ -2042,7 +2119,7 @@ NVENCSTATUS EncodeDecode::encodeFrameBuffer()
     picParams.pictureStruct = NV_ENC_PIC_STRUCT_FRAME;
     picParams.inputBuffer = mVInputRsrc[bufferIndex];
     picParams.bufferFmt = mEBufferFormat;
-    picParams.inputWidth = mOldWidth;
+    picParams.inputWidth = mOldWidth; // TODO: should it be 1080?
     picParams.inputHeight = mOldHeight;
     picParams.outputBitstream = mVOutputRsrc[0];
     picParams.completionEvent = mVPCompletionEvent[bufferIndex];
@@ -2907,10 +2984,10 @@ int runMain(int argc, char** argv)
 
     // unsigned int speedInput = std::stoi(argv[1]); // 6
     // float speedInput = std::stof(argv[1]); // 6
-    float speedInput = 1;
+    // float speedInput = 1;
 
     // unsigned int speedInput = 1;
-    std::cout << "speed " << speedInput << std::endl;
+    // std::cout << "speed " << speedInput << std::endl;
 
     SampleAppConfig config;
     config.windowDesc.title = "EncodeDecode";
@@ -2925,7 +3002,7 @@ int runMain(int argc, char** argv)
     EncodeDecode encodeDecode(config);
     encodeDecode.mWidth = 1920;
     encodeDecode.mHeight = 1080;
-    encodeDecode.setSpeed(speedInput);
+    // encodeDecode.setSpeed(speedInput);
 
     std::cout << "encodeDecode.recordExperiment" << encodeDecode.recordExperiment << std::endl;
     if (encodeDecode.recordExperiment) // only work if run from git bash
@@ -2947,6 +3024,5 @@ int EncodeDecode::run()
 int main(int argc, char** argv)
 {
     std::cout << "Current Path: " << std::filesystem::current_path() << std::endl;
-    // unsigned int bitrate = 3000;
     return catchAndReportAllExceptions([&]() { return runMain(argc, argv); });
 }

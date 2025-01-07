@@ -250,7 +250,7 @@ EncodeDecode::EncodeDecode(const SampleAppConfig& config) : SampleApp(config)
     );
 
 
-    mipLevelsCompute = fmax(ceil(log2(mWidth)), ceil(log2(mHeight)));
+    // mipLevelsCompute = fmax(ceil(log2(mWidth)), ceil(log2(mHeight)));
     // mipLevels = fmax(ceil(log2(mWidth/64)), ceil(log2(mHeight/64)));
     mipLevels = 1; // 7: 64x64 patches, 11: 1x1 patch, 1: 1920x1080 patch
     std::cout << "constructor mipLevels: " << mipLevels << "\n";

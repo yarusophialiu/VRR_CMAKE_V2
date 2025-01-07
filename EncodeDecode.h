@@ -88,13 +88,15 @@ struct NvEncInputFrame
 };
 
 // bitrates used in initPairList() in constructor
-// std::vector<int> bitrates = {500, 1000, 2000, 4000, 8000};
-std::vector<int> bitrates = {500};
-// std::vector<std::string> sceneNames = {"sibenik", "breakfastroom", "salledebain"};
-std::vector<std::string> sceneNames = {"breakfastroom"}; // "breakfastroom_0_1000kbps"
-int pathsPerScene = 1; // 3
-float bias = 0.0f;
-
+std::vector<int> bitrates = {1000, 2000, 4000, 8000};
+// std::vector<float> speeds = {0.5, 1, 2};
+std::vector<float> speeds = {1};
+// std::vector<int> bitrates = {1000, 2000, 4000, 8000};
+std::vector<std::string> sceneNames = {"sibenik", "breakfastroom", "salledebain"};
+// std::vector<std::string> sceneNames = {"breakfastroom"}; // "breakfastroom_0_1000kbps"
+int pathsPerScene = 3; // 3
+float bias = 0.5f; // TODO: change bias, vrron true, turn off runonnxmodel, speed in experiment.sh
+// std::string nnOuputCSVFolder = "C:/Users/15142/new/Falcor/Source/Samples/EncodeDecode/nnOutput/patch-data-05-CSV-bias5/"; // original-model sibenik-slow-original-smaller-07/
 
 class EncodeDecode : public SampleApp
 {
@@ -527,6 +529,8 @@ public:
         ADAPTIVE
     };
 
+    bool switchAB = false;
+    bool bothViewed = false;
     stimuli_state_t stimuliState;
     ExperimentCondition mCurrentCondition;
     std::vector<ExperimentCondition> mConditions;
@@ -572,10 +576,6 @@ public:
 
     unsigned int mCurrentTrial = 0;
 
-    // suntemple_statue01_1_2000kbps_1103_1601
-    // TODO
-    std::string nnOuputCSVFolder = "C:/Users/15142/new/Falcor/Source/Samples/EncodeDecode/nnOutput/patch-data-1-CSV-bias0/"; // original-model sibenik-slow-original-smaller-07/
-    //std::string nnOuputCSVFolder = "nnOutput/"; // original-model sibenik-slow-original-smaller-07/
     int pairIndex = 0;
     void loadAllScenes();
 
@@ -603,6 +603,7 @@ public:
                          std::vector<float>& res_probabilities, std::vector<float>& fps_probabilities);
     void initPairList();
     std::string getInferenceFileNameForStimulus(ExperimentStimulus* stimulus);
+    std::string getInferencePathNameForStimulus(ExperimentStimulus* stimulus);
     void switchToNextPair();
     void appendChoiceToCsv();
     void appendRowToCsv(int frameNumber, const std::vector<float>& res_probabilities, const std::vector<float>& fps_probabilities);

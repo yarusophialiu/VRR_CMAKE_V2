@@ -13,6 +13,7 @@ class ExperimentStimulus {
     int bitrate;
     int resolution; // Set to -1 for variable resolution
     int framerate; //Set to -1 for variable frame-rate
+    float speed;
 };
 
 
