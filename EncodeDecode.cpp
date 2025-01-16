@@ -1379,7 +1379,7 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
     if ((stimuliState == stimuli_state_t::BASELINE && !switchAB) || (stimuliState == stimuli_state_t::ADAPTIVE && switchAB))
         stimuliString = "B";
 
-
+    // stimuliString += (vrrON ? " vrr ON" : " vrr OFF");
     getTextRenderer().render(pRenderContext, stimuliString, pTargetFbo, {20, 20});
 
     mOldWidth = mWidth;
@@ -1451,7 +1451,6 @@ bool EncodeDecode::onKeyEvent(const KeyboardEvent& keyEvent)
         return true;
     } else if (keyEvent.key == Falcor::Input::Key::Space && bothViewed) {
         //Record choice here experimentFilename
-        std::cout << "mCurrentTrial " << mCurrentTrial << std::endl;
         std::cout << "mCurrentTrial " << mCurrentTrial << std::endl;
         appendChoiceToCsv();
         pairIndex += 1; // jump to next pair

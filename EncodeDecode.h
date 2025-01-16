@@ -89,13 +89,13 @@ struct NvEncInputFrame
 
 // bitrates used in initPairList() in constructor
 std::vector<int> bitrates = {1000, 2000, 4000, 8000};
-// std::vector<float> speeds = {0.5, 1, 2};
-std::vector<float> speeds = {1};
+std::vector<float> speeds = {1, 2};
+// std::vector<float> speeds = {1.5};
 // std::vector<int> bitrates = {1000, 2000, 4000, 8000};
 std::vector<std::string> sceneNames = {"sibenik", "breakfastroom", "salledebain"};
 // std::vector<std::string> sceneNames = {"breakfastroom"}; // "breakfastroom_0_1000kbps"
 int pathsPerScene = 3; // 3
-float bias = 0.5f; // TODO: change bias, vrron true, turn off runonnxmodel, speed in experiment.sh
+float bias = 0.5f; // TODO: change oberserverId, vrron true, turn off runonnxmodel, speed in experiment.sh
 // std::string nnOuputCSVFolder = "C:/Users/15142/new/Falcor/Source/Samples/EncodeDecode/nnOutput/patch-data-05-CSV-bias5/"; // original-model sibenik-slow-original-smaller-07/
 
 class EncodeDecode : public SampleApp
@@ -559,7 +559,7 @@ public:
     // const OrtDmlApi* ortDmlApi;
 
 
-    std::string observerId = "rkm36";
+    std::string observerId = "rm2175";
 
     bool mRayTrace = true;
     bool mUseDOF = false;
