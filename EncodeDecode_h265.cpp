@@ -422,7 +422,7 @@ void EncodeDecode::extract_patch_from_frame(std::vector<uint8_t>& renderedFrameV
     }
 }
 
-
+// renderframe from sampleapp calls onFrameRender
 void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& pTargetFbo)
 {
 
@@ -430,7 +430,7 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
 
     // std::cout << "mpCamera: (" << mpCamera->getPosition().x << ", " << mpCamera->getPosition().y << ", " << mpCamera->getPosition().z << ")\n";
 
-    static double timeSecs = 0;
+    static double timeSecs = 0; // timeSecs is the time through animation, i.e. camera path
     if (mpScene)
     {
         Scene::UpdateFlags updates = mpScene->update(pRenderContext, speed * timeSecs); // 2* timesec, 0.5
@@ -449,6 +449,8 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
             renderRaster(pRenderContext, pTargetFbo);
 
         mpRenderGraph->execute(pRenderContext);
+        pRenderContext->signal(mpDecodeFence.get(), mNDecodeFenceVal);
+
         // blit from one frame buffer (or texture) to another
         // important for displaying the final rendered image to the screen
         // framebuffer object (FBO) that represents the final render target, usually the screen or a backbuffer
@@ -480,7 +482,7 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
         cpuWaitForFencePoint(mpDecodeFence->getNativeHandle().as<ID3D12Fence*>(), mNDecodeFenceVal);
 
         // if (outputReferenceFrames && (fCount_rt >= frameRate))
-        if (outputReferenceFrames && (fCount_rt >= 0))
+        if (outputReferenceFrames && (fCount_rt >= 1))
         // if (outputReferenceFrames)
         {
             // std::cout<< "fCount_rt-frameRate " << fCount_rt-frameRate << "\n";
@@ -493,7 +495,7 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
         }
 
         // if (fCount_rt > 0)  // 2
-        if (fCount_rt >= 0)  // 2
+        if (fCount_rt >= 1)  // 2
         {
             // std::cout << "fCount_rt: " << fCount_rt << "\n";
 
@@ -510,11 +512,12 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
             {
                 std::exit(0);
             }
+            timeSecs += 1.0 / frameRate; // disable line 520 about update timeSecs
         }
         fCount_rt += 1;
         ++fcount;
         // std::cout << "fcount " << fcount << "\n";
-        timeSecs += 1.0 / frameRate;
+        // timeSecs += 1.0 / frameRate; // disable line 515 about update timeSecs
     }
     getTextRenderer().render(pRenderContext, getFrameRate().getMsg(), pTargetFbo, {20, 20});
 
@@ -1646,7 +1649,7 @@ void EncodeDecode::renderRT(RenderContext* pRenderContext, const ref<Fbo>& pTarg
     */
 
     // mpRtOut and pTargetFbo have the same size, i.e. width height of reference frames
-    pRenderContext->signal(mpDecodeFence.get(), mNDecodeFenceVal);
+    // pRenderContext->signal(mpDecodeFence.get(), mNDecodeFenceVal);
     // pRenderContext->blit(mpRtOut->getSRV(), pTargetFbo->getRenderTargetView(0));
 }
 
