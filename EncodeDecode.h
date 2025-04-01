@@ -20,8 +20,8 @@
 
 #define DML_TARGET_VERSION_USE_LATEST
 #include <DirectML.h> // The DirectML header from the Windows SDK.
-#include "dml_provider_factory.h"
-#include "onnxruntime_cxx_api.h"
+// #include "dml_provider_factory.h"
+// #include "onnxruntime_cxx_api.h"
 
 
 using namespace Falcor;
@@ -36,32 +36,32 @@ using namespace Falcor;
             throw ConvertOrtStatusToHResult(*status); \
         } \
     }
-HRESULT ConvertOrtStatusToHResult(OrtStatus& status)
-{
-    // std::string errorMessage = ortApi.GetErrorMessage(&status);
-    OrtApi const& ortApi = Ort::GetApi(); // Uses ORT_API_VERSION
-    OrtErrorCode ortErrorCode = ortApi.GetErrorCode(&status);
-    ortApi.ReleaseStatus(&status);
+// HRESULT ConvertOrtStatusToHResult(OrtStatus& status)
+// {
+//     // std::string errorMessage = ortApi.GetErrorMessage(&status);
+//     OrtApi const& ortApi = Ort::GetApi(); // Uses ORT_API_VERSION
+//     OrtErrorCode ortErrorCode = ortApi.GetErrorCode(&status);
+//     ortApi.ReleaseStatus(&status);
 
-    switch (ortErrorCode)
-    {
-    // POSIX error codes really are inadequate to convey common errors, like even just bad file format :/.
-    // Consider using a custom error domain.
-    case OrtErrorCode::ORT_OK:               return S_OK;
-    case OrtErrorCode::ORT_INVALID_ARGUMENT: return E_INVALIDARG;
-    case OrtErrorCode::ORT_NO_SUCHFILE:      return HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND);
-    case OrtErrorCode::ORT_NOT_IMPLEMENTED:  return E_NOTIMPL;
-    case OrtErrorCode::ORT_FAIL:
-    case OrtErrorCode::ORT_NO_MODEL:
-    case OrtErrorCode::ORT_ENGINE_ERROR:
-    case OrtErrorCode::ORT_RUNTIME_EXCEPTION:
-    case OrtErrorCode::ORT_INVALID_PROTOBUF:
-    case OrtErrorCode::ORT_MODEL_LOADED:
-    case OrtErrorCode::ORT_INVALID_GRAPH:
-    case OrtErrorCode::ORT_EP_FAIL:
-    default:                                return E_FAIL;
-    }
-}
+//     switch (ortErrorCode)
+//     {
+//     // POSIX error codes really are inadequate to convey common errors, like even just bad file format :/.
+//     // Consider using a custom error domain.
+//     case OrtErrorCode::ORT_OK:               return S_OK;
+//     case OrtErrorCode::ORT_INVALID_ARGUMENT: return E_INVALIDARG;
+//     case OrtErrorCode::ORT_NO_SUCHFILE:      return HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND);
+//     case OrtErrorCode::ORT_NOT_IMPLEMENTED:  return E_NOTIMPL;
+//     case OrtErrorCode::ORT_FAIL:
+//     case OrtErrorCode::ORT_NO_MODEL:
+//     case OrtErrorCode::ORT_ENGINE_ERROR:
+//     case OrtErrorCode::ORT_RUNTIME_EXCEPTION:
+//     case OrtErrorCode::ORT_INVALID_PROTOBUF:
+//     case OrtErrorCode::ORT_MODEL_LOADED:
+//     case OrtErrorCode::ORT_INVALID_GRAPH:
+//     case OrtErrorCode::ORT_EP_FAIL:
+//     default:                                return E_FAIL;
+//     }
+// }
 
 
 using Microsoft::WRL::ComPtr;
@@ -87,16 +87,16 @@ struct NvEncInputFrame
     NV_ENC_INPUT_RESOURCE_TYPE resourceType;
 };
 
-// bitrates used in initPairList() in constructor
-std::vector<int> bitrates = {1000, 2000, 4000, 8000};
-std::vector<float> speeds = {1, 2};
-// std::vector<float> speeds = {1.5};
-// std::vector<int> bitrates = {1000, 2000, 4000, 8000};
-std::vector<std::string> sceneNames = {"sibenik", "breakfastroom", "salledebain"};
-// std::vector<std::string> sceneNames = {"breakfastroom"}; // "breakfastroom_0_1000kbps"
-int pathsPerScene = 3; // 3
-float bias = 0.5f; // TODO: change oberserverId, vrron true, turn off runonnxmodel, speed in experiment.sh
-// std::string nnOuputCSVFolder = "C:/Users/15142/new/Falcor/Source/Samples/EncodeDecode/nnOutput/patch-data-05-CSV-bias5/"; // original-model sibenik-slow-original-smaller-07/
+
+// // bitrates used in initPairList() in constructor
+// std::vector<int> bitrates = {1000}; // 1000
+// std::vector<float> speeds = {1.0f}; // 1, 2, 3
+// // std::vector<int> bitrates = {500, 1000, 1500, 2000,};
+// //std::vector<std::string> sceneNames = {"sibenik", "breakfastroom", "salledebain"};
+// std::vector<std::string> sceneNames = {"breakfastroom"}; // vokseliaspawn crytek_sponza
+// int pathsPerScene = 2; // 3
+// float bias = 0.5f; // TODO: change oberserverId, vrron true, turn off runonnxmodel, speed in experiment.sh
+// // std::string nnOuputCSVFolder = "C:/Users/15142/new/Falcor/Source/Samples/EncodeDecode/nnOutput/patch-data-05-CSV-bias5/"; // original-model sibenik-slow-original-smaller-07/
 
 class EncodeDecode : public SampleApp
 {
@@ -216,57 +216,57 @@ public:
     int handleSequenceChange(CUVIDEOFORMAT* pFormat);
     int getDecoderFrameSize();
 
-    void initDirectML();
-    void CreateCurrentBuffer();
-    void CopyTextureIntoCurrentBuffer();
-    void CreateFpsBuffer();
-    void CreateBitrateBuffer();
-    void CreateResolutionBuffer();
-    void CreateVelocityBuffer();
-    void CreateFloatBuffer(ComPtr<ID3D12Resource> scalarBuffer, D3D12_VERTEX_BUFFER_VIEW scalarBufferView, float scalarValue);
-    void UpdateScalarBuffer(ComPtr<ID3D12Resource> scalarBuffer, float newScalarValue);
+    // void initDirectML();
+    // void CreateCurrentBuffer();
+    // void CopyTextureIntoCurrentBuffer();
+    // void CreateFpsBuffer();
+    // void CreateBitrateBuffer();
+    // void CreateResolutionBuffer();
+    // void CreateVelocityBuffer();
+    // void CreateFloatBuffer(ComPtr<ID3D12Resource> scalarBuffer, D3D12_VERTEX_BUFFER_VIEW scalarBufferView, float scalarValue);
+    // void UpdateScalarBuffer(ComPtr<ID3D12Resource> scalarBuffer, float newScalarValue);
 
-    ComPtr<ID3D12Resource> CreateD3D12ResourceOfByteSize(
-            ID3D12Device* d3dDevice,
-            size_t resourceByteSize,
-            D3D12_HEAP_TYPE heapType = D3D12_HEAP_TYPE_DEFAULT,
-            D3D12_RESOURCE_STATES resourceState = D3D12_RESOURCE_STATE_COMMON,
-            D3D12_RESOURCE_FLAGS resourceFlags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS
-            );
-    ComPtr<ID3D12Resource> CreateD3D12ResourceForTensor(
-        ID3D12Device* d3dDevice,
-        size_t elementByteSize,
-        std::span<const int64_t> tensorDimensions
-        );
-
-
-    Ort::Value CreateTensorValueFromExistingD3DResource(
-        OrtDmlApi const& ortDmlApi,
-        Ort::MemoryInfo const& memoryInformation,
-        ID3D12Resource* d3dResource,
-        std::span<const int64_t> tensorDimensions,
-        ONNXTensorElementDataType elementDataType,
-        /*out*/ void** dmlEpResourceWrapper // Must stay alive with Ort::Value.
-    );
+    // ComPtr<ID3D12Resource> CreateD3D12ResourceOfByteSize(
+    //         ID3D12Device* d3dDevice,
+    //         size_t resourceByteSize,
+    //         D3D12_HEAP_TYPE heapType = D3D12_HEAP_TYPE_DEFAULT,
+    //         D3D12_RESOURCE_STATES resourceState = D3D12_RESOURCE_STATE_COMMON,
+    //         D3D12_RESOURCE_FLAGS resourceFlags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS
+    //         );
+    // ComPtr<ID3D12Resource> CreateD3D12ResourceForTensor(
+    //     ID3D12Device* d3dDevice,
+    //     size_t elementByteSize,
+    //     std::span<const int64_t> tensorDimensions
+    //     );
 
 
-    std::string GetTensorName(size_t index, Ort::Session const& session, bool isInput);
-    bool IsSupportedOnnxTensorElementDataType(ONNXTensorElementDataType dataType);
-    char const* NameOfOnnxTensorElementDataType(ONNXTensorElementDataType dataType);
-    size_t ByteSizeOfOnnxTensorElementDataType(ONNXTensorElementDataType dataType);
-    void GenerateValueSequence(std::span<std::byte> data, ONNXTensorElementDataType dataType);
-    void FillIntegerValues(std::span<std::byte> data, ONNXTensorElementDataType dataType, ScalarUnion value);
+    // Ort::Value CreateTensorValueFromExistingD3DResource(
+    //     OrtDmlApi const& ortDmlApi,
+    //     Ort::MemoryInfo const& memoryInformation,
+    //     ID3D12Resource* d3dResource,
+    //     std::span<const int64_t> tensorDimensions,
+    //     ONNXTensorElementDataType elementDataType,
+    //     /*out*/ void** dmlEpResourceWrapper // Must stay alive with Ort::Value.
+    // );
 
-    Ort::Value CreateTensorValueUsingD3DResource(
-        ID3D12Device* d3dDevice,
-        OrtDmlApi const& ortDmlApi,
-        Ort::MemoryInfo const& memoryInformation,
-        std::span<const int64_t> dimensions,
-        ONNXTensorElementDataType elementDataType,
-        size_t elementByteSize,
-        /*out opt*/ ID3D12Resource** d3dResource,
-        /*out*/ void** dmlEpResourceWrapper
-    );
+
+    // std::string GetTensorName(size_t index, Ort::Session const& session, bool isInput);
+    // bool IsSupportedOnnxTensorElementDataType(ONNXTensorElementDataType dataType);
+    // char const* NameOfOnnxTensorElementDataType(ONNXTensorElementDataType dataType);
+    // size_t ByteSizeOfOnnxTensorElementDataType(ONNXTensorElementDataType dataType);
+    // void GenerateValueSequence(std::span<std::byte> data, ONNXTensorElementDataType dataType);
+    // void FillIntegerValues(std::span<std::byte> data, ONNXTensorElementDataType dataType, ScalarUnion value);
+
+    // Ort::Value CreateTensorValueUsingD3DResource(
+    //     ID3D12Device* d3dDevice,
+    //     OrtDmlApi const& ortDmlApi,
+    //     Ort::MemoryInfo const& memoryInformation,
+    //     std::span<const int64_t> dimensions,
+    //     ONNXTensorElementDataType elementDataType,
+    //     size_t elementByteSize,
+    //     /*out opt*/ ID3D12Resource** d3dResource,
+    //     /*out*/ void** dmlEpResourceWrapper
+    // );
 
 
     void UploadTensorData(
@@ -445,37 +445,37 @@ private:
     ID3D12CommandQueue* mpD3dQueue;
     // DML execution provider prefers these session options.
 public:
-    // ONNX runtime
-    Ort::SessionOptions* sessionOptions = nullptr;
-    Ort::Env* env;
-    Ort::Session* ortSession = nullptr;
-    const OrtDmlApi* ortDmlApi = nullptr;
-    ComPtr<ID3D12Resource> mpPatchBuffer;
+    // // ONNX runtime
+    // Ort::SessionOptions* sessionOptions = nullptr;
+    // Ort::Env* env;
+    // Ort::Session* ortSession = nullptr;
+    // const OrtDmlApi* ortDmlApi = nullptr;
+    // ComPtr<ID3D12Resource> mpPatchBuffer;
     ref<Texture> mpPatchTexture;
-    ComPtr<ID3D12GraphicsCommandList> mpCommandList;
-    ComPtr<ID3D12CommandAllocator> mpCommandAllocator;
-    ComPtr<ID3D12CommandQueue> mpCommandQueue;
-    ComPtr<ID3D12PipelineState> mpPipelineState;
-    ComPtr<ID3D12Resource> mpFpsBuffer;
-    D3D12_VERTEX_BUFFER_VIEW mpFpsBufferView;
-    ComPtr<ID3D12Resource> mpBitrateBuffer;
-    D3D12_VERTEX_BUFFER_VIEW mpBitrateBufferView;
-    ComPtr<ID3D12Resource> mpResBuffer;
-    D3D12_VERTEX_BUFFER_VIEW mpResBufferView;
-    ComPtr<ID3D12Resource> mpVelocityBuffer;
+    // ComPtr<ID3D12GraphicsCommandList> mpCommandList;
+    // ComPtr<ID3D12CommandAllocator> mpCommandAllocator;
+    // ComPtr<ID3D12CommandQueue> mpCommandQueue;
+    // ComPtr<ID3D12PipelineState> mpPipelineState;
+    // ComPtr<ID3D12Resource> mpFpsBuffer;
+    // D3D12_VERTEX_BUFFER_VIEW mpFpsBufferView;
+    // ComPtr<ID3D12Resource> mpBitrateBuffer;
+    // D3D12_VERTEX_BUFFER_VIEW mpBitrateBufferView;
+    // ComPtr<ID3D12Resource> mpResBuffer;
+    // D3D12_VERTEX_BUFFER_VIEW mpResBufferView;
+    // ComPtr<ID3D12Resource> mpVelocityBuffer;
     D3D12_VERTEX_BUFFER_VIEW mpVelocityBufferView;
 
-    Ort::AllocatorWithDefaultOptions ortAllocator;
+    // Ort::AllocatorWithDefaultOptions ortAllocator;
 
 
-    Ort::Value CreateTensorValueFromD3DResource(
-        OrtDmlApi const& dmlApi,
-        Ort::MemoryInfo const& memoryInformation,
-        ID3D12Resource* d3dResource,
-        std::vector<int64_t> inputShape,
-        ONNXTensorElementDataType elementDataType,
-        /*out*/ void** dmlEpResourceWrapper // Must stay alive with Ort::Value.
-    );
+    // Ort::Value CreateTensorValueFromD3DResource(
+    //     OrtDmlApi const& dmlApi,
+    //     Ort::MemoryInfo const& memoryInformation,
+    //     ID3D12Resource* d3dResource,
+    //     std::vector<int64_t> inputShape,
+    //     ONNXTensorElementDataType elementDataType,
+    //     /*out*/ void** dmlEpResourceWrapper // Must stay alive with Ort::Value.
+    // );
 
     uint32_t inputChannels;
     uint32_t inputHeight;
@@ -525,8 +525,8 @@ public:
 
     enum class stimuli_state_t {
 
-        BASELINE,
-        ADAPTIVE
+        DROPJOD04, // BASELINE
+        DROPJOD06 // ADAPTIVE
     };
 
     bool switchAB = false;
@@ -534,6 +534,8 @@ public:
     stimuli_state_t stimuliState;
     ExperimentCondition mCurrentCondition;
     std::vector<ExperimentCondition> mConditions;
+    ExperimentManager manager;
+
     std::vector<ref<Scene>> mpScenes;
     ref<Scene> mpScene;
     ref<Camera> mpCamera;
@@ -559,7 +561,7 @@ public:
     // const OrtDmlApi* ortDmlApi;
 
 
-    std::string observerId = "rm2175";
+    std::string observerId = "";
 
     bool mRayTrace = true;
     bool mUseDOF = false;
@@ -568,8 +570,8 @@ public:
     bool outputReferenceFrames = false; // output Falcor rendered frames as bmp file
 
     int targetBitrate; //  = 3000;
-    bool runONNXModel = false; // if false, change csv file and bitrate to targetbitrate, if true set fps to 166, doesnt care about vrron
-    bool vrrON = true; // false true, if true, set runONNXModel to false, change csv in csvPaths, bitrate, fps
+    bool runONNXModel = false; // dropjod 0.4
+    bool vrrON = false; // dropjod 0.6
     bool recordExperiment = true;
     bool resetBaseline = false; // set to standard approach 1080p 60fps
     bool switchCondition = false;
@@ -592,11 +594,16 @@ public:
     std::string nnOutputFilename = "";
     std::string experimentFilename = "";
 
-    std::vector<int> frameNumbersCSV;
-    std::vector<std::vector<float>> resProbabilitiesCSV;
-    std::vector<std::vector<float>> fpsProbabilitiesCSV;
-    std::vector<int> resolutionCSV;
-    std::vector<int> fpsCSV;
+    std::vector<int> frameNumbersCSV1;
+    std::vector<int> frameNumbersCSV2;
+    std::vector<std::vector<float>> resProbabilitiesCSV1;
+    std::vector<std::vector<float>> fpsProbabilitiesCSV1;
+    std::vector<std::vector<float>> resProbabilitiesCSV2;
+    std::vector<std::vector<float>> fpsProbabilitiesCSV2;
+    std::vector<int> resolutionCSV1;
+    std::vector<int> resolutionCSV2;
+    std::vector<int> fpsCSV1;
+    std::vector<int> fpsCSV2;
     void runONNXInference(RenderContext* pRenderContext, int startX, int startY, float patchVelocity,
                           std::vector<float>& outputResTensorValues, std::vector<float>& outputFpsTensorValues);
     void processNNOutput(std::vector<float>& outputResTensorValues, std::vector<float>& outputFpsTensorValues,
@@ -607,12 +614,7 @@ public:
     void switchToNextPair();
     void appendChoiceToCsv();
     void appendRowToCsv(int frameNumber, const std::vector<float>& res_probabilities, const std::vector<float>& fps_probabilities);
-    void readCsv(const std::string& filename,
-             std::vector<int>& frameNumbers,
-             std::vector<std::vector<float>>& resProbabilities,
-             std::vector<std::vector<float>>& fpsProbabilities,
-             std::vector<int>& resolutionCSV,
-             std::vector<int>& fpsCSV);
+    void readCsv(const std::string& filename, int& resolutionCSV, int& fpsCSV);
     bool getProbabilitiesForFrame(int frameNumber, std::vector<float>& resProbabilities, std::vector<float>& fpsProbabilities);
     void testKeyChange();
     void changeFpsResolution();
@@ -640,6 +642,7 @@ public:
     int mTimeFrames = 0;
     int currentSceneIdx = 0;
 
+    signed int selectedSpeed;
     signed int selectedFps;
     signed int selectedHeight;
     signed int selectedWidth;

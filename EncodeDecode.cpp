@@ -413,17 +413,17 @@ int argmax(const std::vector<float>& values) {
 }
 
 
-Ort::Session get_session(Ort::Env& env, const std::wstring& model_path, Ort::SessionOptions* sessionOptions) {
-    try {
-        // Initialize the session with a wide string path
-        Ort::Session ortSession(env, model_path.c_str(), *sessionOptions);
-        return ortSession;  // Return the session object
-    } catch (const Ort::Exception& e) {
-        // Handle any exceptions related to session creation
-        std::cerr << "Error creating ONNX Runtime session: " << e.what() << std::endl;
-        throw;  // Re-throw the exception if needed
-    }
-}
+// Ort::Session get_session(Ort::Env& env, const std::wstring& model_path, Ort::SessionOptions* sessionOptions) {
+//     try {
+//         // Initialize the session with a wide string path
+//         Ort::Session ortSession(env, model_path.c_str(), *sessionOptions);
+//         return ortSession;  // Return the session object
+//     } catch (const Ort::Exception& e) {
+//         // Handle any exceptions related to session creation
+//         std::cerr << "Error creating ONNX Runtime session: " << e.what() << std::endl;
+//         throw;  // Re-throw the exception if needed
+//     }
+// }
 
 std::pair<uint32_t, uint32_t> getRandomStartCoordinates(int frameWidth, int frameHeight, int patchWidth, int patchHeight) {
     // Random number generation setup
@@ -447,17 +447,12 @@ static const Falcor::float4 kClearColor(0.f, 0.f, 0.0f, 1);
 // constructor
 EncodeDecode::EncodeDecode(const SampleAppConfig& config) : SampleApp(config)
 {
-        /*1422x800 dec not working, new pairs: 1536, 1200; 864, 676*/
         mConfig = config;
-        // mWidth = config.windowDesc.width;   // 1920, 4096, 1280, 854, 640, 960, 1024, 1280, 1440, 1423
-        // mHeight = config.windowDesc.height; // 1080, 2160, 720, 480, 360, 540, 600, 800, 900, 800
+        mWidth = config.windowDesc.width;   // 1920, 4096, 1280, 854, 640, 960, 1024, 1280, 1440, 1423
+        mHeight = config.windowDesc.height; // 1080, 2160, 720, 480, 360, 540, 600, 800, 900, 800
 
-        // std::cout << '\n';
-        // std::cout << "mWidth: " << mWidth << std::endl;
-        // std::cout << "mHeight: " << mHeight << std::endl;
-        // std::cout << '\n';
 
-        stimuliState = stimuli_state_t::ADAPTIVE;
+        stimuliState = vrrON == true ? stimuli_state_t::DROPJOD04 : stimuli_state_t::DROPJOD06;
         mpDevice = getDevice();
         mpD3D12Device = mpDevice->getNativeHandle().as<ID3D12Device*>();
 
@@ -469,8 +464,8 @@ EncodeDecode::EncodeDecode(const SampleAppConfig& config) : SampleApp(config)
         mNVEnc = {};
         mEBufferFormat = NV_ENC_BUFFER_FORMAT_ARGB;
         mCudaDevice = 0;
-        mpRtOut = getDevice()->createTexture2D(mWidth1920, mHeight1080, ResourceFormat::BGRA8Unorm, 1, 1, nullptr, ResourceBindFlags::UnorderedAccess | ResourceBindFlags::ShaderResource);
-        // mpRtOut = getDevice()->createTexture2D(mWidth, mHeight, ResourceFormat::BGRA8Unorm, 1, 1, nullptr, ResourceBindFlags::UnorderedAccess | ResourceBindFlags::ShaderResource);
+        // mpRtOut = getDevice()->createTexture2D(mWidth1920, mHeight1080, ResourceFormat::BGRA8Unorm, 1, 1, nullptr, ResourceBindFlags::UnorderedAccess | ResourceBindFlags::ShaderResource);
+        mpRtOut = getDevice()->createTexture2D(mWidth, mHeight, ResourceFormat::BGRA8Unorm, 1, 1, nullptr, ResourceBindFlags::UnorderedAccess | ResourceBindFlags::ShaderResource);
         // std::cout << "bitrate: " << bitRate << std::endl;
 
         // cast into directx 12 using: ->getNativeHandle().as<ID3D12Resource*>();
@@ -494,7 +489,12 @@ EncodeDecode::EncodeDecode(const SampleAppConfig& config) : SampleApp(config)
         );
 
         initPairList();
-        mCurrentCondition = mConditions[0];
+        if (!mConditions.empty()) {
+            mCurrentCondition = mConditions[0];
+        } else {
+            std::cerr << "Error: mConditions is empty! No conditions were generated.\n";
+        }
+        // mCurrentCondition = mConditions[0];
 }
 
 EncodeDecode::~EncodeDecode() {}
@@ -509,54 +509,33 @@ void EncodeDecode::onLoad(RenderContext* pRenderContext)
         FALCOR_THROW("Device does not support raytracing!");
     }
     mpRenderContextDecode = pRenderContext;
-    // D3D12_COMMAND_QUEUE_DESC queueDesc = {};
-    // queueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
-    // queueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
-    // ThrowIfFailed(mpD3D12Device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, mpCommandAllocator.Get(), mpPipelineState.Get(), IID_PPV_ARGS(&mpCommandList)));
-    //(mpD3D12Device->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&mpCommandQueue)));
-
 
     loadAllScenes();
     // set bitrate, scene for the first pair
     std::cout << "onloading mCurrentTrial " << mCurrentTrial << std::endl;
     mCurrentCondition = mConditions[mCurrentTrial];
-    std::string inferenceDir = getInferencePathNameForStimulus(&mCurrentCondition.stimulus1);
-    std::string inferenceFileNmame = getInferenceFileNameForStimulus(&mCurrentCondition.stimulus1);
-    std::string inferenceFilePath = inferenceDir + inferenceFileNmame;
-    readCsv(inferenceFilePath, frameNumbersCSV, resProbabilitiesCSV, fpsProbabilitiesCSV, resolutionCSV, fpsCSV);
-
-    std::cout << "switchToNextPair readCsv Resolutions: ";
-    for (const auto& res : resolutionCSV) {
-        std::cout << res << " ";
-    }
-    std::cout << std::endl;
-
-    // Print fpsCSV
-    std::cout << "FPS: ";
-    for (const auto& fps : fpsCSV) {
-        std::cout << fps << " ";
-    }
-    std::cout << std::endl;
-
-    std::cout << "\n\n\n!!!!!!!!!!!!!!!!!!!!!!!!!inferenceFilePath " << inferenceFilePath << std::endl;
 
     setScene(mCurrentCondition.stimulus1.sceneIndex);
     setFrameRate(60);
+    // setFrameRate(30);
 
     if (runONNXModel)
         setFrameRate(166);
+    // setFrameRate(mCurrentCondition.stimulus1.framerate);
     setBitRate(mCurrentCondition.stimulus1.bitrate);
     setSpeed(mCurrentCondition.stimulus1.speed);
-    if (mCurrentCondition.stimulus1.bitrate > 5000) {
-        setResolution(1920, 1080);
-    } else {
-       setResolution(1280, 720);
-    }
+    // if (mCurrentCondition.stimulus1.bitrate > 5000) {
+    //     setResolution(1920, 1080);
+    // } else {
+    // //    setResolution(1920, 1080);
+    //    setResolution(1280, 720);
+    // }
+    setResolution(1920, 1080);
     // loadScene(kDefaultScene, getTargetFbo().get());
 
 
-    if (runONNXModel)
-        initDirectML();
+    // if (runONNXModel)
+    //     initDirectML();
     initEncoder();
     initDecoder();
     std::cout << "load scene: " << std::endl;
@@ -567,12 +546,6 @@ void EncodeDecode::onLoad(RenderContext* pRenderContext)
     // setScene(0);
     // readCsv(csvPaths[pairIndex], frameNumbersCSV, resProbabilitiesCSV, fpsProbabilitiesCSV);
     // auto [bitrateCSV, speedCSV] = extractBitrateAndSpeed(csvPaths[pairIndex]);
-    // if (bitrateCSV != -1 && speedCSV != -1) {
-    //     std::cout << "Bitrate: " << bitrateCSV << " kbps\n";
-    //     std::cout << "Speed: " << speedCSV << "\n";
-    // } else {
-    //     std::cout << "Failed to extract bitrate and speed.\n";
-    // }
     // resetBitRate(bitrateCSV); // TODO: should we reset bitrate for runonnxmodel?
     // setSpeed(speedCSV);
 
@@ -607,6 +580,7 @@ void EncodeDecode::onLoad(RenderContext* pRenderContext)
     makeEncoderOutputBuffers(1);
 
     // initializeProbabilities(frameRate, mHeight); // initialize p_res, p_fps
+    selectedSpeed = speed;
     selectedFps = frameRate;
     selectedHeight = mHeight;
     selectedWidth = res_map_by_height[mHeight];
@@ -709,37 +683,25 @@ std::tuple<int, int, int> EncodeDecode::shouldChangeSettings(int currentFps, int
 
 
 
-bool EncodeDecode::getProbabilitiesForFrame(int frameNumber, std::vector<float>& resProbabilities, std::vector<float>& fpsProbabilities) {
-    // Find the index of the given frameNumber
-    auto it = std::find(frameNumbersCSV.begin(), frameNumbersCSV.end(), frameNumber);
-    if (it != frameNumbersCSV.end()) {
-        size_t index = std::distance(frameNumbersCSV.begin(), it);
+// bool EncodeDecode::getProbabilitiesForFrame(int frameNumber, std::vector<float>& resProbabilities, std::vector<float>& fpsProbabilities) {
+//     // Find the index of the given frameNumber
+//     auto it = std::find(frameNumbersCSV.begin(), frameNumbersCSV.end(), frameNumber);
+//     if (it != frameNumbersCSV.end()) {
+//         size_t index = std::distance(frameNumbersCSV.begin(), it);
 
-        // Retrieve probabilities for the frame
-        resProbabilities = resProbabilitiesCSV[index];
-        fpsProbabilities = fpsProbabilitiesCSV[index];
-        return true; // Success
-    } else {
-        std::cerr << "Frame number " << frameNumber << " not found." << std::endl;
-        return false; // Frame number not found
-    }
-}
+//         // Retrieve probabilities for the frame
+//         resProbabilities = resProbabilitiesCSV[index];
+//         fpsProbabilities = fpsProbabilitiesCSV[index];
+//         return true; // Success
+//     } else {
+//         std::cerr << "Frame number " << frameNumber << " not found." << std::endl;
+//         return false; // Frame number not found
+//     }
+// }
 
 
-void EncodeDecode::readCsv(const std::string& filename,
-                            std::vector<int>& frameNumbers,
-                            std::vector<std::vector<float>>& resProbabilities,
-                            std::vector<std::vector<float>>& fpsProbabilities,
-                            std::vector<int>& resolutionFromCSV,
-                            std::vector<int>& fpsFromCSV)
+void EncodeDecode::readCsv(const std::string& filename, int& resolution, int& fps)
 {
-    // Reinitialize vectors
-    frameNumbers.clear();
-    resProbabilities.clear();
-    fpsProbabilities.clear();
-
-    resolutionCSV.clear();
-    fpsCSV.clear();
 
     std::ifstream file(filename);
 
@@ -750,56 +712,25 @@ void EncodeDecode::readCsv(const std::string& filename,
     }
 
     std::string line;
-    while (std::getline(file, line)) {
+    if (std::getline(file, line)) {  // Read only the first line
         std::istringstream iss(line);
+        std::string fpsStr, resolutionStr;
 
-        // Read frame number
-        std::string frameNumberStr;
-        std::getline(iss, frameNumberStr, ',');
-        frameNumbers.push_back(std::stoi(frameNumberStr));
-        // std::cout << frameNumberStr << ", ";
-        // resolutionCSV.push_back()
-        // std::cout << "frameNumberStr " << frameNumberStr << std::endl;
-
-        // Read resolution probabilities
-        std::string resProbsStr;
-        std::getline(iss, resProbsStr, ',');
-        std::istringstream resStream(resProbsStr);
-        std::vector<float> resProbs;
-        float value;
-        while (resStream >> value) {
-            resProbs.push_back(value);
+       if (std::getline(iss, fpsStr, ',') && std::getline(iss, resolutionStr, ',')) {
+            try {
+                fps = std::stoi(fpsStr);
+                resolution = std::stoi(resolutionStr);
+            } catch (const std::exception& e) {
+                std::cerr << "Error converting to integer: " << e.what() << std::endl;
+            }
+        } else {
+            std::cerr << "Error: Could not extract fps and resolution." << std::endl;
         }
-        resProbabilities.push_back(resProbs);
 
-        // Read FPS probabilities
-        std::string fpsProbsStr;
-        std::getline(iss, fpsProbsStr, ',');
-        std::istringstream fpsStream(fpsProbsStr);
-        std::vector<float> fpsProbs;
-        while (fpsStream >> value) {
-            fpsProbs.push_back(value);
-        }
-        fpsProbabilities.push_back(fpsProbs);
-
-        // Read fps
-        std::string fpsStr;
-        std::getline(iss, fpsStr, ',');
-        fpsFromCSV.push_back(std::stoi(fpsStr));
-
-        // Read resolution
-        std::string resolutionStr;
-        std::getline(iss, resolutionStr, ',');
-        resolutionFromCSV.push_back(std::stoi(resolutionStr));
+        std::cout << "Read first line values: fps = " << fps << ", resolution = " << resolution << std::endl;
     }
 
     file.close();
-
-    // // Size checks
-    // std::cout << "filename: " << filename << "\n";
-    // std::cout << "Size of frameNumbers: " << frameNumbers.size() << "\n";
-    // std::cout << "Size of resProbabilities: " << resProbabilities.size() << "\n";
-    // std::cout << "Size of fpsProbabilities: " << fpsProbabilities.size() << "\n";
 }
 
 
@@ -810,49 +741,50 @@ void EncodeDecode::readCsv(const std::string& filename,
 
 
 */
+// sequences picked by Plot_HPC pick_sequences.py
 void EncodeDecode::initPairList() {
-    for (int i = 0; i < bitrates.size(); ++i) {
-        for (int j = 0; j < sceneNames.size(); ++j) {
-            for (int k = 0; k < pathsPerScene; ++k) {
-                for (int s = 0; s < speeds.size(); ++s) {
-                    // Here we assume all base conditions are 1080p60, we may want to change that
+    //                 std::string inferenceDir1 = getInferencePathNameForStimulus(&s1);
+    //                 std::string inferenceFileName1 = getInferenceFileNameForStimulus(&s1);
+    //                 std::string inferenceFilePath1 = inferenceDir1 + inferenceFileName1;
+    //                 readCsv(inferenceFilePath1, s1.resolution, s1.framerate);
 
-                    ExperimentStimulus s1;
-                    ExperimentStimulus s2;
-                    ExperimentCondition condition;
 
-                    s1.sceneName = sceneNames[j];
-                    s1.sceneIndex = j * pathsPerScene + k;
-                    s1.pathIndex = k;
-                    s1.bitrate = bitrates[i];
-                    s1.resolution = -1;
-                    s1.framerate = -1;
-                    s1.speed = speeds[s];
+    // max jod vs 0.25
+    manager.addStimulus(ExperimentStimulus("living_room", "path2_seg3_1", 2000, 720, 90, 1.f, 0.4f, 0));
+    manager.addStimulus(ExperimentStimulus("living_room", "path2_seg3_1", 2000, 1080, 120, 1.f, 0.6f, 0));
 
-                    s2.sceneName = sceneNames[j];
-                    s2.sceneIndex = j * pathsPerScene + k;
-                    s2.pathIndex = k;
-                    s2.bitrate = bitrates[i];
-                    s2.speed = speeds[s];
+    // manager.addStimulus(ExperimentStimulus("living_room", "path1_seg3_3", 1500, 720, 100, 3.f, 0.4f, 12));
+    // manager.addStimulus(ExperimentStimulus("living_room", "path1_seg3_3", 1500, 480, 100, 3.f, 0.6f, 12));
+    // manager.addStimulus(ExperimentStimulus("living_room", "path4_seg1_2", 1000, 720, 80, 2.f, 0.4f, 13));
+    // manager.addStimulus(ExperimentStimulus("living_room", "path4_seg1_2", 1000, 480, 70, 2.f, 0.6f, 13));
+    // manager.addStimulus(ExperimentStimulus("living_room", "path1_seg1_1", 500, 720, 70, 1.f, 0.4f, 14));
+    // manager.addStimulus(ExperimentStimulus("living_room", "path1_seg1_1", 500, 480, 60, 1.f, 0.6f, 14));
 
-                    if (bitrates[i] > 5000) {
-                        s2.resolution = 1080;
-                    } else {
+    // manager.addStimulus(ExperimentStimulus("lost_empire", "path1_seg1_3", 1500, 720, 100, 3.f, 0.4f, 15));
+    // manager.addStimulus(ExperimentStimulus("lost_empire", "path1_seg1_3", 1500, 480, 100, 3.f, 0.6f, 15));
+    // manager.addStimulus(ExperimentStimulus("lost_empire", "path1_seg3_1", 1500, 720, 80, 1.f, 0.4f, 16));
+    // manager.addStimulus(ExperimentStimulus("lost_empire", "path1_seg3_1", 1500, 480, 80, 1.f, 0.6f, 16));
+    // manager.addStimulus(ExperimentStimulus("lost_empire", "path3_seg1_1", 1500, 720, 80, 1.f, 0.4f, 17));
+    // manager.addStimulus(ExperimentStimulus("lost_empire", "path3_seg1_1", 1500, 720, 60, 1.f, 0.6f, 17));
 
-                        s2.resolution = 720;
-                    }
+    // manager.addStimulus(ExperimentStimulus("room", "path1_seg1_2", 1000, 720, 80, 2.f, 0.4f, 18));
+    // manager.addStimulus(ExperimentStimulus("room", "path1_seg1_2", 1000, 480, 80, 2.f, 0.6f, 18));
+    // manager.addStimulus(ExperimentStimulus("room", "path2_seg2_2", 1500, 720, 80, 2.f, 0.4f, 19));
+    // manager.addStimulus(ExperimentStimulus("room", "path2_seg2_2", 2000, 480, 80, 2.f, 0.6f, 19));
+    // manager.addStimulus(ExperimentStimulus("room", "path3_seg3_1", 1000, 720, 80, 1.f, 0.4f, 20));
+    // manager.addStimulus(ExperimentStimulus("room", "path3_seg3_1", 1000, 480, 80, 1.f, 0.6f, 20));
 
-                    // s2.resolution = 1080;
-                    s2.framerate = 60;
-                    condition.stimulus1 = s1;
-                    condition.stimulus2 = s2;
+    // manager.addStimulus(ExperimentStimulus("suntemple", "path3_seg1_1", 2000, 720, 80, 1.f, 0.4f, 21));
+    // manager.addStimulus(ExperimentStimulus("suntemple", "path3_seg1_1", 2000, 480, 80, 1.f, 0.6f, 21));
+    // manager.addStimulus(ExperimentStimulus("suntemple", "path5_seg2_1", 2000, 720, 80, 1.f, 0.4f, 22));
+    // manager.addStimulus(ExperimentStimulus("suntemple", "path5_seg2_1", 2000, 480, 80, 1.f, 0.6f, 22));
+    // manager.addStimulus(ExperimentStimulus("suntemple", "path1_seg2_2", 1000, 720, 50, 2.f, 0.4f, 23));
+    // manager.addStimulus(ExperimentStimulus("suntemple", "path1_seg2_2", 1000, 480, 40, 2.f, 0.6f, 23));
 
-                    mConditions.push_back(condition);
+    manager.generateConditions(mConditions);
+    std::cout << "mConditions size " << mConditions.size() << "\n";
 
-                }
-            }
-        }
-    }
+
 
     // auto rng = std::default_random_engine {};
     // std::shuffle(std::begin(mConditions), std::end(mConditions), rng);
@@ -864,29 +796,34 @@ void EncodeDecode::initPairList() {
 }
 
 
-std::string EncodeDecode::getInferenceFileNameForStimulus(ExperimentStimulus* stimulus) {
+// std::string EncodeDecode::getInferenceFileNameForStimulus(ExperimentStimulus* stimulus) {
 
-    std::string result;
+//     std::string result;
 
-    if (stimulus && stimulus->resolution == -1 && stimulus->framerate == -1) {
+//     // if (stimulus && stimulus->resolution == -1 && stimulus->framerate == -1) {
 
-        result = stimulus->sceneName + "_" + std::to_string(stimulus->pathIndex) + "_" + std::to_string(stimulus->bitrate) + "kbps.csv";
-    }
-
-    return result;
-}
+//     //     result = stimulus->sceneName + "_" + std::to_string(stimulus->pathIndex) + "_" + std::to_string(stimulus->bitrate) + "kbps.csv";
+//     // }
+//     result = stimulus->sceneName + "_" + std::to_string(stimulus->pathIndex) + "_" + std::to_string(stimulus->bitrate) + "kbps.csv";
+//     return result;
+// }
 
 
 std::string EncodeDecode::getInferencePathNameForStimulus(ExperimentStimulus* stimulus) {
 
-    if (stimulus->speed == 0.5) {
-        return "C:/Users/15142/new/Falcor/Source/Samples/EncodeDecode/nnOutput/patch-data-05-CSV-bias5/";
-    } else if (stimulus->speed == 1) {
-
-        return "C:/Users/15142/new/Falcor/Source/Samples/EncodeDecode/nnOutput/patch-data-1-CSV-bias5/";
-    } else if (stimulus->speed == 2) {
-
-        return "C:/Users/15142/new/Falcor/Source/Samples/EncodeDecode/nnOutput/patch-data-2-CSV-bias5/";
+    if (stimulus->speed == 1) {
+        return stimulus->DROPJODSCALE == 0.4f
+            ? "C:/Users/15142/new/Falcor/Source/Samples/EncodeDecode/nnOutput/drop-jod/patch-data-dropjod04-1-CSV/"
+            : "C:/Users/15142/new/Falcor/Source/Samples/EncodeDecode/nnOutput/drop-jod/patch-data-dropjod06-1-CSV/";
+    }
+    else if (stimulus->speed == 2) {
+        return stimulus->DROPJODSCALE == 0.4f
+            ? "C:/Users/15142/new/Falcor/Source/Samples/EncodeDecode/nnOutput/drop-jod/patch-data-dropjod04-2-CSV/"
+            : "C:/Users/15142/new/Falcor/Source/Samples/EncodeDecode/nnOutput/drop-jod/patch-data-dropjod06-2-CSV/";
+    } else if (stimulus->speed == 3) {
+        return stimulus->DROPJODSCALE == 0.4f
+            ? "C:/Users/15142/new/Falcor/Source/Samples/EncodeDecode/nnOutput/drop-jod/patch-data-dropjod04-3-CSV/"
+            : "C:/Users/15142/new/Falcor/Source/Samples/EncodeDecode/nnOutput/drop-jod/patch-data-dropjod06-3-CSV/";
     }
 
     return "";
@@ -901,27 +838,21 @@ void EncodeDecode::switchToNextPair() {
 
     mCurrentCondition = mConditions[mCurrentTrial];
 
-    std::string inferenceDir = getInferencePathNameForStimulus(&mCurrentCondition.stimulus1);
-    std::string inferenceFileNmame = getInferenceFileNameForStimulus(&mCurrentCondition.stimulus1);
-    std::string inferenceFilePath = inferenceDir + inferenceFileNmame;
-    readCsv(inferenceFilePath, frameNumbersCSV, resProbabilitiesCSV, fpsProbabilitiesCSV, resolutionCSV, fpsCSV);
-    std::cout << "switchToNextPair readCsv Resolutions: ";
-    for (const auto& res : resolutionCSV) {
-        std::cout << res << " ";
-    }
-    std::cout << std::endl;
 
-    // Print fpsCSV
-    std::cout << "FPS: ";
-    for (const auto& fps : fpsCSV) {
-        std::cout << fps << " ";
-    }
-    std::cout << std::endl;
+    // std::string inferenceDir1 = getInferencePathNameForStimulus(&mCurrentCondition.stimulus1);
+    // std::string inferenceFileName1 = getInferenceFileNameForStimulus(&mCurrentCondition.stimulus1);
+    // std::string inferenceFilePath1 = inferenceDir1 + inferenceFileName1;
+    // readCsv(inferenceFilePath1, mCurrentCondition.stimulus1.resolution, mCurrentCondition.stimulus1.framerate);
 
+    // std::string inferenceDir2 = getInferencePathNameForStimulus(&mCurrentCondition.stimulus2);
+    // std::string inferenceFileName2 = getInferenceFileNameForStimulus(&mCurrentCondition.stimulus2);
+    // std::string inferenceFilePath2 = inferenceDir2 + inferenceFileName2;
+    // readCsv(inferenceFilePath2, mCurrentCondition.stimulus2.resolution, mCurrentCondition.stimulus2.framerate);
 
     std::cout << "mCurrentTrial " << mCurrentTrial << std::endl;
-    std::cout << "switchToNextPair inferenceFilePath " << inferenceFilePath << std::endl;
 
+    // TODO Why set it here?
+    selectedSpeed = speed;
     selectedFps = frameRate;
     selectedHeight = mHeight;
     selectedWidth = res_map_by_height[mHeight];
@@ -930,11 +861,7 @@ void EncodeDecode::switchToNextPair() {
 
     setScene(mCurrentCondition.stimulus1.sceneIndex);
     setSpeed(mCurrentCondition.stimulus1.speed);
-    if (mCurrentCondition.stimulus1.bitrate > 5000) {
-        setResolution(1920, 1080);
-    } else {
-        setResolution(1280, 720);
-    }
+    setResolution(1920, 1080);
     setFrameRate(60);
     setBitRate(mCurrentCondition.stimulus1.bitrate);
     mTimeSecs = 0;
@@ -948,16 +875,14 @@ void EncodeDecode::switchToNextPair() {
     switchAB = (std::rand() % 2) == 0;
 
     if (!switchAB) {
-
         vrrON = true;
-        stimuliState = stimuli_state_t::ADAPTIVE;
+        stimuliState = stimuli_state_t::DROPJOD04;
     } else {
-
         vrrON = false;
-        stimuliState = stimuli_state_t::BASELINE;
+        stimuliState = stimuli_state_t::DROPJOD06;
         resetBaseline = true;
     }
-
+    // std::this_thread::sleep_for(std::chrono::seconds(8));
 }
 
 
@@ -973,7 +898,7 @@ void EncodeDecode::appendChoiceToCsv()
     }
 
 
-    file << observerId << "," << mCurrentCondition.stimulus1.sceneName << "," << mCurrentCondition.stimulus1.bitrate << "," << speed << "," << bias << "," << ((vrrON)? "1" : "0")  << "\n"; // End of the row
+    file << observerId << "," << mCurrentCondition.stimulus1.sceneName << "," << mCurrentCondition.stimulus1.bitrate << "," << speed  << "," << ((vrrON)? "1" : "0") << "," << (stimuliState == stimuli_state_t::DROPJOD04? "0.4" : "0.6") << "," << mHeight << "," << frameRate << "\n"; // End of the row
     file.close();
 }
 
@@ -981,7 +906,7 @@ void EncodeDecode::appendChoiceToCsv()
 void EncodeDecode::appendRowToCsv(int frameNumber,
                     const std::vector<float>& res_probabilities, const std::vector<float>& fps_probabilities)
 {
-    std::string csvName = mCurrentCondition.stimulus1.sceneName + "_" + std::to_string(mCurrentCondition.stimulus1.pathIndex)
+    std::string csvName = mCurrentCondition.stimulus1.sceneName + "_" + mCurrentCondition.stimulus1.pathName
                         + "_" + std::to_string(mCurrentCondition.stimulus1.bitrate) + "kbps.csv";
     fs::path dirPath = fs::path(szNNOutputPrefixFilePath) / csvName;
     // Open the file in append mode
@@ -1026,7 +951,6 @@ void EncodeDecode::testKeyChange()
 {
     if (mResolutionChange == -1)
     {
-        //setFrameRate(10);
         setResolution(854, 480);
         mResolutionChange = 0;
     } else if (mResolutionChange == 1) {
@@ -1058,102 +982,102 @@ float EncodeDecode::computePatchVelocity(RenderContext* pRenderContext, int star
 }
 
 
-void EncodeDecode::runONNXInference(RenderContext* pRenderContext, int startX, int startY, float patchVelocity,
-                                    std::vector<float>& outputResTensorValues, std::vector<float>& outputFpsTensorValues)
-{
-    ref<Texture> frameTexture = mpRenderGraph->getOutput("TAA.colorOut")->asTexture(); // GBuffer.mvec
-    std::vector<uint8_t> renderedFrameVal = pRenderContext->readTextureSubresource(frameTexture.get(), 0);
-    std::vector<uint8_t> patchData(patchWidth * patchHeight * 3);
-    uint32_t frameWidth = frameTexture->getWidth();
-    uint32_t frameHeight = frameTexture->getHeight();
-    // renderedFrameVal has 4 channels, patch has 3 channels
+// void EncodeDecode::runONNXInference(RenderContext* pRenderContext, int startX, int startY, float patchVelocity,
+//                                     std::vector<float>& outputResTensorValues, std::vector<float>& outputFpsTensorValues)
+// {
+//     ref<Texture> frameTexture = mpRenderGraph->getOutput("TAA.colorOut")->asTexture(); // GBuffer.mvec
+//     std::vector<uint8_t> renderedFrameVal = pRenderContext->readTextureSubresource(frameTexture.get(), 0);
+//     std::vector<uint8_t> patchData(patchWidth * patchHeight * 3);
+//     uint32_t frameWidth = frameTexture->getWidth();
+//     uint32_t frameHeight = frameTexture->getHeight();
+//     // renderedFrameVal has 4 channels, patch has 3 channels
 
-    extract_patch_from_frame(renderedFrameVal, 1920, 1080, startX, startY, patchData);
+//     extract_patch_from_frame(renderedFrameVal, 1920, 1080, startX, startY, patchData);
 
-    std::string dirName = mCurrentCondition.stimulus1.sceneName + "_" + std::to_string(mCurrentCondition.stimulus1.pathIndex) + "_" + std::to_string(mCurrentCondition.stimulus1.bitrate) + "_" + std::to_string(speed);
-    std::filesystem::create_directory(dirName);
+//     std::string dirName = mCurrentCondition.stimulus1.sceneName + "_" + std::to_string(mCurrentCondition.stimulus1.pathIndex) + "_" + std::to_string(mCurrentCondition.stimulus1.bitrate) + "_" + std::to_string(speed);
+//     std::filesystem::create_directory(dirName);
 
-    std::string fileName = dirName + "/" + std::to_string(mTimeFrames) + ".bmp";
-    writeBMP(fileName.c_str(), patchData.data(), patchWidth, patchHeight, 3);
-    FILE* fp = nullptr;
-
-
-    if (mTimeFrames == 2) {
-
-        fp = fopen((dirName + "/" + "velocities.csv").c_str(), "w+");
-    } else {
-
-        fp = fopen((dirName + "/" + "velocities.csv").c_str(), "a+");
-    }
-
-    std::string velocity_str = std::to_string(patchVelocity) + "\n";
-    fprintf(fp, velocity_str.c_str());
-
-    fclose(fp);
+//     std::string fileName = dirName + "/" + std::to_string(mTimeFrames) + ".bmp";
+//     writeBMP(fileName.c_str(), patchData.data(), patchWidth, patchHeight, 3);
+//     FILE* fp = nullptr;
 
 
-    // fileName = "frame_" + std::to_string(mTimeFrames) + ".png";
+//     if (mTimeFrames == 2) {
 
-    // frameTexture->captureToFile(0, 0, fileName);
+//         fp = fopen((dirName + "/" + "velocities.csv").c_str(), "w+");
+//     } else {
 
-    std::vector<float> floatData(patchData.size()); // how many channels? 49152 = 128x128x3
+//         fp = fopen((dirName + "/" + "velocities.csv").c_str(), "a+");
+//     }
 
-    // Normalize each uint8_t to a float in the range [0, 1]
-    float patchMean = 0;
-    for (size_t i = 0; i < patchData.size(); ++i) {
-        floatData[i] = static_cast<float>(patchData[i]) / 255.0f;
-        patchMean += floatData[i];
-    }
+//     std::string velocity_str = std::to_string(patchVelocity) + "\n";
+//     fprintf(fp, velocity_str.c_str());
 
-    patchMean /= patchData.size();
+//     fclose(fp);
 
-    std::cout << "Patch mean: " << patchMean << "\n";
 
-    int64_t fps = 166;
-    std::vector<int64_t> fpsVec = {fps};
-    std::vector<int64_t> bitrateVec = {targetBitrate}; // TODO: change for bitrate you want
-    std::vector<int64_t> resolutionVec = {1080};
-    std::vector<float> velocityVec = {patchVelocity};
+//     // fileName = "frame_" + std::to_string(mTimeFrames) + ".png";
 
-    std::cout << "Target bitrate: " << targetBitrate << "\n";
-    std::cout << "Motion velocity: " << patchVelocity << "\n";
+//     // frameTexture->captureToFile(0, 0, fileName);
 
-    Ort::AllocatorWithDefaultOptions allocator;
-    Ort::MemoryInfo memoryInfo = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
+//     std::vector<float> floatData(patchData.size()); // how many channels? 49152 = 128x128x3
 
-    std::vector<int64_t> inputDims = {1, 3, patchHeight, patchWidth};
-    std::vector<int64_t> scalerInputDims = {1};
-    Ort::Value inputImageTensor = Ort::Value::CreateTensor<float>(memoryInfo, floatData.data(), floatData.size(), inputDims.data(), inputDims.size());
-    Ort::Value inputFpsTensor = Ort::Value::CreateTensor<int64_t>(memoryInfo, fpsVec.data(), fpsVec.size(), scalerInputDims.data(), scalerInputDims.size());
-    Ort::Value inputBitrateTensor = Ort::Value::CreateTensor<int64_t>(memoryInfo, bitrateVec.data(), bitrateVec.size(), scalerInputDims.data(), scalerInputDims.size());
-    Ort::Value inputResolutionTensor = Ort::Value::CreateTensor<int64_t>(memoryInfo, resolutionVec.data(), resolutionVec.size(), scalerInputDims.data(), scalerInputDims.size());
-    Ort::Value inputVelocityTensor = Ort::Value::CreateTensor<float>(memoryInfo, velocityVec.data(), velocityVec.size(), scalerInputDims.data(), scalerInputDims.size());
+//     // Normalize each uint8_t to a float in the range [0, 1]
+//     float patchMean = 0;
+//     for (size_t i = 0; i < patchData.size(); ++i) {
+//         floatData[i] = static_cast<float>(patchData[i]) / 255.0f;
+//         patchMean += floatData[i];
+//     }
 
-    std::vector<int64_t> outputDims = {1, 5};
-    std::vector<int64_t> fpsOutputDims = {1, 10};
-    size_t outputResTensorSize = 5; // vectorProduct(outputDims);
-    size_t outputFpsTensorSize = 10; // vectorProduct(outputDims);
+//     patchMean /= patchData.size();
 
-    Ort::Value outputResTensor = Ort::Value::CreateTensor<float>(memoryInfo, outputResTensorValues.data(), outputResTensorSize, outputDims.data(), outputDims.size());
-    Ort::Value outputFpsTensor = Ort::Value::CreateTensor<float>(memoryInfo, outputFpsTensorValues.data(), outputFpsTensorSize, fpsOutputDims.data(), fpsOutputDims.size());
+//     std::cout << "Patch mean: " << patchMean << "\n";
 
-    auto bindings = Ort::IoBinding::IoBinding(*ortSession);
-    bindings.BindInput(ortSession->GetInputNameAllocated(0, ortAllocator).get(), inputImageTensor);
-    bindings.BindInput(ortSession->GetInputNameAllocated(1, ortAllocator).get(), inputFpsTensor);
-    bindings.BindInput(ortSession->GetInputNameAllocated(2, ortAllocator).get(), inputBitrateTensor);
-    bindings.BindInput(ortSession->GetInputNameAllocated(3, ortAllocator).get(), inputResolutionTensor);
-    bindings.BindInput(ortSession->GetInputNameAllocated(4, ortAllocator).get(), inputVelocityTensor);
-    bindings.BindOutput(ortSession->GetOutputNameAllocated(0, ortAllocator).get(), outputResTensor);
-    bindings.BindOutput(ortSession->GetOutputNameAllocated(1, ortAllocator).get(), outputFpsTensor);
+//     int64_t fps = 166;
+//     std::vector<int64_t> fpsVec = {fps};
+//     std::vector<int64_t> bitrateVec = {targetBitrate}; // TODO: change for bitrate you want
+//     std::vector<int64_t> resolutionVec = {1080};
+//     std::vector<float> velocityVec = {patchVelocity};
 
-    std::cout << "Running ONNX model\n";
-    Ort::RunOptions runOpts;
-    runOpts.SetRunLogVerbosityLevel(3); // 0 = Default, higher values mean more detailed logging
-    ortSession->Run(runOpts, bindings);
-    bindings.SynchronizeOutputs();
+//     std::cout << "Target bitrate: " << targetBitrate << "\n";
+//     std::cout << "Motion velocity: " << patchVelocity << "\n";
 
-    print_vectors(outputFpsTensorValues, outputResTensorValues);
-}
+//     Ort::AllocatorWithDefaultOptions allocator;
+//     Ort::MemoryInfo memoryInfo = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
+
+//     std::vector<int64_t> inputDims = {1, 3, patchHeight, patchWidth};
+//     std::vector<int64_t> scalerInputDims = {1};
+//     Ort::Value inputImageTensor = Ort::Value::CreateTensor<float>(memoryInfo, floatData.data(), floatData.size(), inputDims.data(), inputDims.size());
+//     Ort::Value inputFpsTensor = Ort::Value::CreateTensor<int64_t>(memoryInfo, fpsVec.data(), fpsVec.size(), scalerInputDims.data(), scalerInputDims.size());
+//     Ort::Value inputBitrateTensor = Ort::Value::CreateTensor<int64_t>(memoryInfo, bitrateVec.data(), bitrateVec.size(), scalerInputDims.data(), scalerInputDims.size());
+//     Ort::Value inputResolutionTensor = Ort::Value::CreateTensor<int64_t>(memoryInfo, resolutionVec.data(), resolutionVec.size(), scalerInputDims.data(), scalerInputDims.size());
+//     Ort::Value inputVelocityTensor = Ort::Value::CreateTensor<float>(memoryInfo, velocityVec.data(), velocityVec.size(), scalerInputDims.data(), scalerInputDims.size());
+
+//     std::vector<int64_t> outputDims = {1, 5};
+//     std::vector<int64_t> fpsOutputDims = {1, 10};
+//     size_t outputResTensorSize = 5; // vectorProduct(outputDims);
+//     size_t outputFpsTensorSize = 10; // vectorProduct(outputDims);
+
+//     Ort::Value outputResTensor = Ort::Value::CreateTensor<float>(memoryInfo, outputResTensorValues.data(), outputResTensorSize, outputDims.data(), outputDims.size());
+//     Ort::Value outputFpsTensor = Ort::Value::CreateTensor<float>(memoryInfo, outputFpsTensorValues.data(), outputFpsTensorSize, fpsOutputDims.data(), fpsOutputDims.size());
+
+//     auto bindings = Ort::IoBinding::IoBinding(*ortSession);
+//     bindings.BindInput(ortSession->GetInputNameAllocated(0, ortAllocator).get(), inputImageTensor);
+//     bindings.BindInput(ortSession->GetInputNameAllocated(1, ortAllocator).get(), inputFpsTensor);
+//     bindings.BindInput(ortSession->GetInputNameAllocated(2, ortAllocator).get(), inputBitrateTensor);
+//     bindings.BindInput(ortSession->GetInputNameAllocated(3, ortAllocator).get(), inputResolutionTensor);
+//     bindings.BindInput(ortSession->GetInputNameAllocated(4, ortAllocator).get(), inputVelocityTensor);
+//     bindings.BindOutput(ortSession->GetOutputNameAllocated(0, ortAllocator).get(), outputResTensor);
+//     bindings.BindOutput(ortSession->GetOutputNameAllocated(1, ortAllocator).get(), outputFpsTensor);
+
+//     std::cout << "Running ONNX model\n";
+//     Ort::RunOptions runOpts;
+//     runOpts.SetRunLogVerbosityLevel(3); // 0 = Default, higher values mean more detailed logging
+//     ortSession->Run(runOpts, bindings);
+//     bindings.SynchronizeOutputs();
+
+//     print_vectors(outputFpsTensorValues, outputResTensorValues);
+// }
 
 
 int findMaxIndex(const std::vector<float>& probabilities) {
@@ -1221,18 +1145,7 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
 
     if (mpScene)
     {
-        //static int fCount_rt = 0;
-
-        if (!runONNXModel) {
-            // getAnimationDurationSecs: calculates the maximum duration of all animations in a Scene object
-            if (mTimeSecs >= mpScene->getAnimationDurationSecs() / mCurrentCondition.stimulus1.speed) {
-                mTimeFrames = 0;
-                mTimeSecs = 0;
-            }
-        }
-
-
-        Scene::UpdateFlags updates = mpScene->update(pRenderContext, mCurrentCondition.stimulus1.speed * mTimeSecs); // 2* timesec, 0.5
+        Scene::UpdateFlags updates = mpScene->update(pRenderContext, mCurrentCondition.stimulus1.speed * ((double)mTimeFrames / frameRate)); // 2* timesec, 0.5
         std::cout << "Scene animation duration(s): " << mpScene->getAnimationDurationSecs() << "\n";
         if (is_set(updates, Scene::UpdateFlags::GeometryChanged))
             FALCOR_THROW("This sample does not support scene geometry changes.");
@@ -1260,13 +1173,11 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
         pRenderContext->blit(mpRenderGraph->getOutput("TAA.colorOut")->getSRV(), mPEncoderInputTexture864->getRTV(0));
         pRenderContext->blit(mpRenderGraph->getOutput("TAA.colorOut")->getSRV(), mPEncoderInputTexture1080->getRTV(0));
 
-        // if (outputReferenceFrames && (mTimeFrames > 0))
-        // {
-        //     // std::cout<< "fCount_rt-frameRate " << fCount_rt-frameRate << "\n";
-        //     snprintf(szRefOutFilePath, sizeof(szRefOutFilePath), "%s%d.bmp", refBaseFilePath, mTimeFrames); // fCount_rt-frameRate
-        //     // mpRtOut->captureToFile(0, 0, szRefOutFilePath, Bitmap::FileFormat::BmpFile, Bitmap::ExportFlags::None, false);
-        //     mpRenderGraph->getOutput("TAA.colorOut")->asTexture()->captureToFile(0, 0, szRefOutFilePath, Bitmap::FileFormat::BmpFile, Bitmap::ExportFlags::None, false);
-        // }
+        if (outputReferenceFrames && (mTimeFrames > 0))
+        {
+            std::string path = refBaseFilePath + std::to_string(mTimeFrames) + ".png";
+            mpRenderGraph->getOutput("TAA.colorOut")->asTexture()->captureToFile(0, 0, path, Bitmap::FileFormat::PngFile);
+        }
 
         encodeFrameBuffer(); // write encoded data into h264
         decodeFrameBuffer(); // mDecodedFrame updated, then call handlePictureDecode
@@ -1290,7 +1201,11 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
            if (outputDecodedFrames)
             {
                 snprintf(szDecOutFilePath, sizeof(szDecOutFilePath), "%s%d.bmp", decBaseFilePath, mTimeFrames);
+                mPDecoderOutputTexture1080->captureToFile(0, 0, szDecOutFilePath);
                 writeBMP(szDecOutFilePath, mPHostRGBAFrame, mWidth, mHeight);
+
+                // std::string path = decBaseFilePath + std::to_string(mTimeFrames) + ".png";
+                // mPHostRGBAFrame->asTexture()->captureToFile(0, 0, path, Bitmap::FileFormat::PngFile);
             }
 
             if (vrrON || runONNXModel) {
@@ -1304,82 +1219,58 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
                     setResolution(selectedWidth, selectedHeight);
                     currentResolutionFrameLength = 0;
                 }
+
+                if (selectedSpeed!= speed)
+                {
+                    setSpeed(selectedSpeed);
+                }
             }
 
             std::vector<float> res_probabilities(5);
             std::vector<float> fps_probabilities(10);
 
-            if (runONNXModel)
-            {
-                auto [startX, startY] = getRandomStartCoordinates(mWidth1920, mHeight1080, 128, 128);
-                // int startX = 0;
-                // int startY = 0;
-                std::cout << "frameRate, " << frameRate << ", resolution " << mHeight << "\n"; // starting index, the number of elements
-                float patchVelocity = computePatchVelocity(pRenderContext, startX, startY);
-                std::cout << "patchVelocity " << patchVelocity << std::endl;
-
-                std::vector<float> outputResTensorValues(5); // output will be loaded into the vector
-                std::vector<float> outputFpsTensorValues(10);
-                runONNXInference(pRenderContext, startX, startY, patchVelocity, outputResTensorValues, outputFpsTensorValues);
-                processNNOutput(outputResTensorValues, outputFpsTensorValues, res_probabilities, fps_probabilities);
-                appendRowToCsv(mTimeFrames, res_probabilities, fps_probabilities); // write to csv the processed probabilities
-
-                int maxResIndex = findMaxIndex(res_probabilities);
-                int maxFpsIndex = findMaxIndex(fps_probabilities);
-                // Output the results
-                std::cout << "Index with highest resolution: " << maxResIndex << ", prediction " << reverse_res_map[maxResIndex] << std::endl;
-                std::cout << "Index with highest FPS: " << maxFpsIndex  << ", prediction " << reverse_fps_map[maxFpsIndex] << std::endl;
-
-                std::tie(selectedFps, selectedWidth, selectedHeight) = shouldChangeSettings(frameRate, mHeight, fps_probabilities, res_probabilities);
-
-                if (mTimeSecs >= mpScene->getAnimationDurationSecs() / mCurrentCondition.stimulus1.speed) {
-
-                    if (mCurrentTrial >= mConditions.size() - 1) {
-
-                        std::cout << "Exiting\n";
-                        exit(0);
-                    } else {
-
-                        switchToNextPair();
-                    }
-                }
-            } else if (vrrON) {
+            if (vrrON) { // drop jod 0.4
                 std::cout << "entering vrrON " << std::endl;
                 // read from csv to find fps and resolution
-                auto it = std::find(frameNumbersCSV.begin(), frameNumbersCSV.end(), mTimeFrames);
-                if (it != frameNumbersCSV.end()) {
-                    size_t index = std::distance(frameNumbersCSV.begin(), it);
+                selectedHeight = mCurrentCondition.stimulus1.resolution;
+                selectedWidth = res_map_by_height[selectedHeight];
+                selectedFps = mCurrentCondition.stimulus1.framerate;
+                selectedSpeed = mCurrentCondition.stimulus1.speed;
 
-                    // Retrieve probabilities for the frame
-                    selectedHeight = resolutionCSV[index];
-                    selectedWidth = res_map_by_height[selectedHeight];
-                    selectedFps = fpsCSV[index];
-                    std::cout << "CSV selectedHeight " << selectedHeight << " selectedWidth " << selectedWidth << ", selectedFps " << selectedFps << std::endl;
-                } else {
-                    std::cerr << "Frame number " << mTimeFrames << " not found." << std::endl;
-                }
-            } else if (resetBaseline) {
+                std::cout << "CSV selectedHeight " << selectedHeight << " selectedWidth " << selectedWidth << ", selectedFps " << selectedFps << ", selectedSpeed" << selectedSpeed << std::endl;
+            } else {
+                // selectedHeight = mCurrentCondition.stimulus2.resolution;
+                // selectedWidth = res_map_by_height[selectedHeight];
+                // selectedFps = mCurrentCondition.stimulus2.framerate;
+                std::cout << "NO VRR, CSV selectedHeight " << selectedHeight << " selectedWidth " << selectedWidth << ", selectedFps " << selectedFps << std::endl;
+                std::cout << "stimulus2 resolution " << mCurrentCondition.stimulus2.resolution << " selectedWidth " << res_map_by_height[mCurrentCondition.stimulus2.resolution] << ", selectedFps " << mCurrentCondition.stimulus2.framerate << ", selectedSpeed" << mCurrentCondition.stimulus2.speed << std::endl;
+
                 setResolution(res_map_by_height[mCurrentCondition.stimulus2.resolution], mCurrentCondition.stimulus2.resolution);
                 setFrameRate(mCurrentCondition.stimulus2.framerate);
-                resetBaseline = false;
+                setSpeed(mCurrentCondition.stimulus2.speed);
+                // resetBaseline = false;
             }
 
             // if (frameLimit > 0 && fcount >= frameLimit)
+            // if (mTimeFrames > 30)
             // {
             //     std::exit(0);
             // }
         }
 
         mTimeFrames += 1;
-        mTimeSecs += 1.0 / mEstimatedFramerate;
+        mTimeSecs += 1.0 / frameRate;
     }
 
-    std::string stimuliString = "A";
+    std::string stimuliString = "A"; // "A"
+    if ((stimuliState == stimuli_state_t::DROPJOD04 && !switchAB) || (stimuliState == stimuli_state_t::DROPJOD06 && switchAB))
+        stimuliString = "B"; // "B"
 
-    if ((stimuliState == stimuli_state_t::BASELINE && !switchAB) || (stimuliState == stimuli_state_t::ADAPTIVE && switchAB))
-        stimuliString = "B";
-
-    // stimuliString += (vrrON ? " vrr ON" : " vrr OFF");
+    // stimuliString += (vrrON ? " vrr ON\n" : " vrr OFF\n");
+    // stimuliString += "speed "+ std::to_string(speed) + "\n";
+    // stimuliString += "bitrate "+ std::to_string(bitRate) + "\n";
+    // stimuliString += std::to_string(mHeight) + "p, " + std::to_string(frameRate) + " FPS\n";
+    // stimuliString += ((stimuliState == stimuli_state_t::DROPJOD04) ? " dropjod 0.4" : " dropjod 0.6");
     getTextRenderer().render(pRenderContext, stimuliString, pTargetFbo, {20, 20});
 
     mOldWidth = mWidth;
@@ -1411,16 +1302,14 @@ bool EncodeDecode::onKeyEvent(const KeyboardEvent& keyEvent)
     if (keyEvent.type != KeyboardEvent::Type::KeyPressed)
         return false;
 
-    if (keyEvent.key == Falcor::Input::Key::Left) {
+    if (keyEvent.key == Falcor::Input::Key::Left) { // stimulus 1, drop-jod 0.4
         // mResolutionChange = 1;
         if (!switchAB) {
-
             vrrON = true;
-            stimuliState = stimuli_state_t::ADAPTIVE;
-        } else {
-
+            stimuliState = stimuli_state_t::DROPJOD04;
+        } else { // stimulus 2, drop-jod 0.6
             vrrON = false;
-            stimuliState = stimuli_state_t::BASELINE;
+            stimuliState = stimuli_state_t::DROPJOD06;
             resetBaseline = true;
         }
 
@@ -1433,13 +1322,11 @@ bool EncodeDecode::onKeyEvent(const KeyboardEvent& keyEvent)
         // mResolutionChange = -1;
 
         if (switchAB) {
-
             vrrON = true;
-            stimuliState = stimuli_state_t::ADAPTIVE;
+            stimuliState = stimuli_state_t::DROPJOD04;
         } else {
-
             vrrON = false;
-            stimuliState = stimuli_state_t::BASELINE;
+            stimuliState = stimuli_state_t::DROPJOD06;
             resetBaseline = true;
         }
 
@@ -1607,7 +1494,8 @@ void EncodeDecode::initEncoder()
     */
 
     makeDefaultEncodingParams(
-        &mEncoderInitializeParams, NV_ENC_CODEC_H264_GUID, NV_ENC_PRESET_P1_GUID, NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY
+        // NV_ENC_CODEC_HEVC_GUID NV_ENC_CODEC_H264_GUID
+        &mEncoderInitializeParams, NV_ENC_CODEC_HEVC_GUID, NV_ENC_PRESET_P1_GUID, NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY
     ); // TODO: changed NV_ENC_PRESET_P1_GUID
 
     if (mpD3D12Device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&mpInputFence)) != S_OK)
@@ -1627,7 +1515,8 @@ void EncodeDecode::initEncoder()
 
     mEncodeConfig.gopLength = NVENC_INFINITE_GOPLENGTH; // The number of frames in a GOP (group of pictures)
     mEncodeConfig.frameIntervalP = 1;
-    mEncodeConfig.encodeCodecConfig.h264Config.idrPeriod = NVENC_INFINITE_GOPLENGTH; // TODO: h264 only, add h265
+    // mEncodeConfig.encodeCodecConfig.h264Config.idrPeriod = NVENC_INFINITE_GOPLENGTH;
+    mEncodeConfig.encodeCodecConfig.hevcConfig.idrPeriod = NVENC_INFINITE_GOPLENGTH;
 
     mEncodeConfig.rcParams.rateControlMode = NV_ENC_PARAMS_RC_CBR; // NV_ENC_PARAMS_RC_VBR NV_ENC_PARAMS_RC_CONSTQP, NV_ENC_PARAMS_RC_CBR,
     mEncodeConfig.rcParams.multiPass = NV_ENC_TWO_PASS_FULL_RESOLUTION; // not valid for h264
@@ -2172,7 +2061,7 @@ NVENCSTATUS EncodeDecode::encodeFrameBuffer()
 
 void EncodeDecode::makeDefaultDecodingParams(CUVIDDECODECREATEINFO* pInitializeParams)
 {
-    pInitializeParams->CodecType = cudaVideoCodec_H264; // cudaVideoCodec_HEVC= h265, cudaVideoCodec_H264 = h264
+    pInitializeParams->CodecType = cudaVideoCodec_HEVC; // cudaVideoCodec_HEVC= h265, cudaVideoCodec_H264 = h264
     pInitializeParams->ChromaFormat = cudaVideoChromaFormat_420;
     pInitializeParams->OutputFormat = cudaVideoSurfaceFormat_NV12;
     pInitializeParams->bitDepthMinus8 = 0;
@@ -2241,7 +2130,7 @@ void EncodeDecode::initDecoder()
     parse the bitstream and perform decoding
     */
     CUVIDPARSERPARAMS videoParserParameters = {};
-    videoParserParameters.CodecType = cudaVideoCodec_H264; // cudaVideoCodec_HEVC, cudaVideoCodec_H264
+    videoParserParameters.CodecType = cudaVideoCodec_HEVC; // cudaVideoCodec_HEVC, cudaVideoCodec_H264
     videoParserParameters.ulMaxNumDecodeSurfaces = 4; // >3 works, number of surfaces (decoded frames) in parser’s DPB (decode picture
                                                       // buffer)
     videoParserParameters.ulClockRate = 0;
@@ -2259,7 +2148,7 @@ void EncodeDecode::initDecoder()
 
     CUVIDDECODECAPS decodecaps;
     memset(&decodecaps, 0, sizeof(decodecaps));
-    decodecaps.eCodecType = cudaVideoCodec_H264; // cudaVideoCodec_HEVC, cudaVideoCodec_H264
+    decodecaps.eCodecType = cudaVideoCodec_HEVC; // cudaVideoCodec_HEVC, cudaVideoCodec_H264
     decodecaps.eChromaFormat = cudaVideoChromaFormat_420;
     decodecaps.nBitDepthMinus8 = 0;
 
@@ -2524,7 +2413,7 @@ int EncodeDecode::handlePictureDecode(CUVIDPICPARAMS* pPicParams)
     // std::cout << "Pic params width: " << pPicParams->PicWidthInMbs * 16 << "\n";
     // std::cout << "Old width: " << mOldWidth << "\n";
 
-    std::cout << "Begining picture decode\n";
+    // std::cout << "Begining picture decode\n";
 
     //  A context represents the environment in which CUDA operations and computations take place
     CUDA_DRVAPI_CALL(cuCtxPushCurrent(mCudaContext)); // CUDA contexts are used to manage the state of the CUDA runtime
@@ -2556,7 +2445,7 @@ int EncodeDecode::handlePictureDecode(CUVIDPICPARAMS* pPicParams)
     // call cuvidMapVideoFrame() to get the CUDA device pointer and pitch of the output surface that holds the decoded and post-processed frame
     // After the function call, dpSrcFrame will contain the CUDA device pointer to the decoded frame on the GPU.
 
-    std::cout << "Mapping video frame\n";
+    // std::cout << "Mapping video frame\n";
 
     NVDEC_API_CALL(cuvidMapVideoFrame(mHDecoder, 0, &dpSrcFrame, &nSrcPitch, &videoProcessingParameters));
 
@@ -2672,61 +2561,87 @@ void EncodeDecode::setExperimentCSVPrefix(std::string filename)
 }
 
 
-void EncodeDecode::initDirectML()
-{
-    sessionOptions = new Ort::SessionOptions();
-    sessionOptions->DisableMemPattern();
-    sessionOptions->SetExecutionMode(ExecutionMode::ORT_SEQUENTIAL);
-    sessionOptions->SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_DISABLE_ALL);
+// void EncodeDecode::initDirectML()
+// {
+//     sessionOptions = new Ort::SessionOptions();
+//     sessionOptions->DisableMemPattern();
+//     sessionOptions->SetExecutionMode(ExecutionMode::ORT_SEQUENTIAL);
+//     sessionOptions->SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_DISABLE_ALL);
 
-    OrtSessionOptionsAppendExecutionProvider_DML(*sessionOptions, 1);
+//     OrtSessionOptionsAppendExecutionProvider_DML(*sessionOptions, 1);
 
-    // By passing in an explicitly created DML device & queue, the DML execution provider sends work
-    // to the desired device. If not used, the DML execution provider will create its own device & queue.
-    const OrtApi& ortApi = Ort::GetApi();
-    ortApi.AddFreeDimensionOverrideByName(*sessionOptions, "batch_size", 1);
+//     // By passing in an explicitly created DML device & queue, the DML execution provider sends work
+//     // to the desired device. If not used, the DML execution provider will create its own device & queue.
+//     const OrtApi& ortApi = Ort::GetApi();
+//     ortApi.AddFreeDimensionOverrideByName(*sessionOptions, "batch_size", 1);
 
-    // obtains a pointer to the DML API
-    // ortDmlApi now points to the DML-specific API functions provided by ONNX Runtime
-    Ort::ThrowOnError(ortApi.GetExecutionProviderApi("DML", ORT_API_VERSION, reinterpret_cast<const void**>(&ortDmlApi)));
+//     // obtains a pointer to the DML API
+//     // ortDmlApi now points to the DML-specific API functions provided by ONNX Runtime
+//     Ort::ThrowOnError(ortApi.GetExecutionProviderApi("DML", ORT_API_VERSION, reinterpret_cast<const void**>(&ortDmlApi)));
 
-    // Load ONNX model into a session.
-    env = new Ort::Env(OrtLoggingLevel::ORT_LOGGING_LEVEL_ERROR, "DirectML_CV");
-    ortSession = new Ort::Session(*env, modelPath.wstring().c_str(), *sessionOptions);
-}
+//     // Load ONNX model into a session.
+//     env = new Ort::Env(OrtLoggingLevel::ORT_LOGGING_LEVEL_ERROR, "DirectML_CV");
+//     ortSession = new Ort::Session(*env, modelPath.wstring().c_str(), *sessionOptions);
+// }
 
-// load all scenes for experiment
-void EncodeDecode::loadScene(const std::filesystem::path& path, const Fbo* pTargetFbo)
-{
+// // load all scenes for experiment
+// void EncodeDecode::loadScene(const std::filesystem::path& path, const Fbo* pTargetFbo)
+// {
 
-    mpScenes.push_back(Scene::create(getDevice(), path));
-    // mpScenes.push_back(Scene::create(getDevice(), "suntemple_statue/suntemple_statue04.fbx"));
-    // mpScene = Scene::create(getDevice(), path);
-}
+//     mpScenes.push_back(Scene::create(getDevice(), path));
+//     // mpScenes.push_back(Scene::create(getDevice(), "suntemple_statue/suntemple_statue04.fbx"));
+//     // mpScene = Scene::create(getDevice(), path);
+// }
 
 void EncodeDecode::loadAllScenes() {
-    for (int i = 0; i < sceneNames.size(); ++i) {
-        for (int j = 0; j < pathsPerScene; ++j) {
-            std::string filePath = sceneNames[i] + "/" + std::to_string(j) + ".fbx";
-            mpScenes.push_back(Scene::create(getDevice(), filePath));
-        }
-    }
+    // preloading takes time
+
+    // max jod vs 0.25
+    mpScenes.push_back(Scene::create(getDevice(), "living_room/path2_seg3.fbx"));
+    // mpScenes.push_back(Scene::create(getDevice(), "living_room/path1_seg3.fbx"));
+    // mpScenes.push_back(Scene::create(getDevice(), "living_room/path5_seg2.fbx"));
+
+    // mpScenes.push_back(Scene::create(getDevice(), "crytek_sponza/path3_seg1.fbx"));
+    // mpScenes.push_back(Scene::create(getDevice(), "crytek_sponza/path1_seg2.fbx"));
+    // mpScenes.push_back(Scene::create(getDevice(), "crytek_sponza/path2_seg3.fbx"));
+
+    // mpScenes.push_back(Scene::create(getDevice(), "gallery/path1_seg1.fbx"));
+    // mpScenes.push_back(Scene::create(getDevice(), "gallery/path1_seg2.fbx"));
+    // mpScenes.push_back(Scene::create(getDevice(), "gallery/path1_seg3.fbx"));
+
+    // mpScenes.push_back(Scene::create(getDevice(), "living_room/path1_seg3.fbx"));
+    // mpScenes.push_back(Scene::create(getDevice(), "living_room/path4_seg1.fbx"));
+    // mpScenes.push_back(Scene::create(getDevice(), "living_room/path1_seg1.fbx"));
+
+    // mpScenes.push_back(Scene::create(getDevice(), "lost_empire/path1_seg1.fbx"));
+    // mpScenes.push_back(Scene::create(getDevice(), "lost_empire/path1_seg3.fbx"));
+    // mpScenes.push_back(Scene::create(getDevice(), "lost_empire/path3_seg1.fbx"));
+
+    // mpScenes.push_back(Scene::create(getDevice(), "room/path1_seg1.fbx"));
+    // mpScenes.push_back(Scene::create(getDevice(), "room/path2_seg2.fbx"));
+    // mpScenes.push_back(Scene::create(getDevice(), "room/path3_seg3.fbx"));
+
+    // mpScenes.push_back(Scene::create(getDevice(), "suntemple/path3_seg1.fbx"));
+    // mpScenes.push_back(Scene::create(getDevice(), "suntemple/path5_seg2.fbx"));
+    // mpScenes.push_back(Scene::create(getDevice(), "suntemple/path1_seg2.fbx"));
 }
 
 void EncodeDecode::setScene(unsigned int index) {
 
     std::string log;
 
+    // TODO: create a scene
     mpScene = mpScenes.at(index);
 
     if (mpRenderGraph) {
 
         mpRenderGraph->setScene(mpScene);
         mpRenderGraph->compile(mpRenderGraph->getDevice()->getRenderContext(), log);
+        // mpRenderGraph->getDevice()->getRenderContext()->clearTexture(mpRenderGraph->getOutput("TAA.colorOut")->asTexture().get(), Falcor::float4(0, 0, 0, 0));
         mpRenderGraph->getDevice()->getRenderContext()->clearTexture(mpRenderGraph->getOutput("GBuffer.mvec")->asTexture().get(), Falcor::float4(0, 0, 0, 0));
     }
 
-    currentSceneIdx = index * 2;
+    // currentSceneIdx = index * 2;
     mpCamera = mpScene->getCamera();
 
     // mpScene->setCameraController(Scene::CameraControllerType::Orbiter);
@@ -2864,12 +2779,12 @@ void EncodeDecode::setResolution(unsigned int width, unsigned int height)
     mHeight = height;
     // prevmHeight = height;
 
-    std::cout << "Setting resolution to: " << width << "x" << height << "\n";
+    // std::cout << "Setting resolution to: " << width << "x" << height << "\n";
 
     if (mHEncoder != nullptr)
     {
 
-        std::cout << "Setting resolution for encoder\n";
+        // std::cout << "Setting resolution for encoder\n";
         mEncoderInitializeParams.encodeWidth = width; // width only shows the cropped scene, 1920 works for 360p
         mEncoderInitializeParams.encodeHeight = height; // height;
         mEncoderInitializeParams.darWidth = width;
@@ -2976,11 +2891,13 @@ void EncodeDecode::renderRT(RenderContext* pRenderContext, const ref<Fbo>& pTarg
     // createMipMaps(pRenderContext);
 }
 
+
 int runMain(int argc, char** argv)
 {
 
     std::cout.setf( std::ios_base::unitbuf );
-
+    unsigned int width = 1280; // 1920 1280
+    unsigned int height = 720; // 1080 720
     // unsigned int speedInput = std::stoi(argv[1]); // 6
     // float speedInput = std::stof(argv[1]); // 6
     // float speedInput = 1;
@@ -2991,26 +2908,21 @@ int runMain(int argc, char** argv)
     SampleAppConfig config;
     config.windowDesc.title = "EncodeDecode";
     config.colorFormat = ResourceFormat::BGRA8Unorm;
-    config.windowDesc.width = 1920; // width;
-    config.windowDesc.height = 1080; // height;
-    config.windowDesc.resizableWindow = false;
-    config.windowDesc.enableVSync = false;
-    config.windowDesc.mode = Falcor::Window::WindowMode::Fullscreen;
-
+    config.windowDesc.width = width;
+    config.windowDesc.height = height;
+    config.windowDesc.resizableWindow = true;
 
     EncodeDecode encodeDecode(config);
-    encodeDecode.mWidth = 1920;
-    encodeDecode.mHeight = 1080;
     // encodeDecode.setSpeed(speedInput);
 
-    std::cout << "encodeDecode.recordExperiment" << encodeDecode.recordExperiment << std::endl;
-    if (encodeDecode.recordExperiment) // only work if run from git bash
-    {
-        std::cout << "enter if" << std::endl;
-        std::string experimentFilename = generateTimestampFilename("Experiment", "");
-        std::cout << "Experiment filename is " << experimentFilename << std::endl;
-        encodeDecode.setExperimentCSVPrefix(experimentFilename);
-    }
+    // std::cout << "encodeDecode.recordExperiment" << encodeDecode.recordExperiment << std::endl;
+    // if (encodeDecode.recordExperiment) // only work if run from git bash
+    // {
+    //     std::cout << "enter if" << std::endl;
+    //     std::string experimentFilename = generateTimestampFilename("Experiment", "");
+    //     std::cout << "Experiment filename is " << experimentFilename << std::endl;
+    //     encodeDecode.setExperimentCSVPrefix(experimentFilename);
+    // }
 
     return encodeDecode.run();
 }
