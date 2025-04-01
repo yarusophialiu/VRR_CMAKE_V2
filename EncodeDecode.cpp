@@ -530,7 +530,7 @@ void EncodeDecode::onLoad(RenderContext* pRenderContext)
     // //    setResolution(1920, 1080);
     //    setResolution(1280, 720);
     // }
-    setResolution(1920, 1080);
+    // setResolution(1920, 1080);
     // loadScene(kDefaultScene, getTargetFbo().get());
 
 
@@ -1126,29 +1126,15 @@ void EncodeDecode::processNNOutput(std::vector<float>& outputResTensorValues,
 // called in sampleapp renderframe()
 void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& pTargetFbo)
 {
-
     double startTime = 0.0;
     startTime = getCurrentTime(); // Capture the start time
     pRenderContext->clearFbo(pTargetFbo.get(), kClearColor, 1.0f, 0, FboAttachmentType::All);
 
-    if (mSwitchOnNext == 1) {
-
-        std::string trialString = "Trial " + std::to_string(mCurrentTrial + 2) + " of " + std::to_string(mConditions.size());
-        getTextRenderer().render(pRenderContext, trialString, pTargetFbo, {0.25 * (960 - 200), 0.25 * 540});
-        mSwitchOnNext = 2;
-        return;
-
-    } else if (mSwitchOnNext == 2) {
-
-        switchToNextPair();
-        mSwitchOnNext = 0;
-    }
-
     static double timeSecs = 0; // timeSecs is the time through animation, i.e. camera path
     if (mpScene)
     {
-        // Scene::UpdateFlags updates = mpScene->update(pRenderContext, mCurrentCondition.stimulus1.speed * timeSecs); // 2* timesec, 0.5
-        Scene::UpdateFlags updates = mpScene->update(pRenderContext, mCurrentCondition.stimulus1.speed * ((double)mTimeFrames / frameRate)); // 2* timesec, 0.5
+        Scene::UpdateFlags updates = mpScene->update(pRenderContext, mCurrentCondition.stimulus1.speed * timeSecs); // 2* timesec, 0.5
+        // Scene::UpdateFlags updates = mpScene->update(pRenderContext, mCurrentCondition.stimulus1.speed * ((double)mTimeFrames / frameRate)); // 2* timesec, 0.5
         std::cout << "Scene animation duration(s): " << mpScene->getAnimationDurationSecs() << "\n";
         if (is_set(updates, Scene::UpdateFlags::GeometryChanged))
             FALCOR_THROW("This sample does not support scene geometry changes.");
@@ -2937,6 +2923,23 @@ void EncodeDecode::setResolution(unsigned int width, unsigned int height)
         reconfig_params.forceIDR = 0;
         reconfig_params.version = NV_ENC_RECONFIGURE_PARAMS_VER;
         NVENC_API_CALL(mNVEnc.nvEncReconfigureEncoder(mHEncoder, &reconfig_params));
+    }
+
+    mpRtOut = getDevice()->createTexture2D(
+        width, height, ResourceFormat::BGRA8Unorm, 1, 1, nullptr, ResourceBindFlags::UnorderedAccess | ResourceBindFlags::ShaderResource
+    );
+
+    auto fbo = getTargetFbo();
+    std::cout << "FBO: " << fbo->getWidth() << "x" << fbo->getHeight() << std::endl;
+
+    if (mpRenderGraph)
+    {
+        mpRenderGraph->setInput("TAA.colorIn", mpRtOut);
+        mpRenderGraph->onResize(fbo.get());
+        std::cout << "RenderGraph resized to: " << fbo->getWidth() << "x" << fbo->getHeight() << std::endl;
+
+        mpRenderGraph->compile(mpDevice->getRenderContext());  // REQUIRED!
+        // makeEncoderInputBuffers(1); // The input buffer is a GPU texture (ID3D12Resource) that you copy your frame into before encoding.
     }
 }
 
