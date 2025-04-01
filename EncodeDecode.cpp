@@ -1180,22 +1180,6 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
             // mpRenderGraph->getOutput("TAA.colorOut")->asTexture()->captureToFile(0, 0, path, Bitmap::FileFormat::PngFile);
         }
 
-
-        // if (fCount_rt >= 1)
-        // {
-        //     encodeFrameBuffer(); // write encoded data into h264
-        //     // decodeFrameBuffer(); // mDecodedFrame updated, then call handlePictureDecode
-        //     if (frameLimit > 0 && fcount >= frameLimit)
-        //     {
-        //         std::exit(0);
-        //     }
-        //     timeSecs += 1.0 / frameRate; // disable line 520 about update timeSecs
-        // }
-
-        // if (fCount_rt == 20)
-        // {
-        //     setResolution(854, 480);
-        // }
         pRenderContext->blit(mpRenderGraph->getOutput("TAA.colorOut")->getSRV(), pTargetFbo->getRenderTargetView(0));
 
         // if (mTimeFrames >= 2)
@@ -1205,24 +1189,22 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
             std::cout << "bitrate : " << bitRate << "\n";
             std::cout << "resolution : " << mWidth << "x" << mHeight << "\n";
             std::cout << "framerate : " << frameRate << "\n";
-            std::cout << "speed : " << speed << "\n";
+            std::cout << "speed : " << speed << "\n\n";
 
             encodeFrameBuffer();
-
-            if (frameLimit > 0 && fcount >= frameLimit)
-            {
-                std::exit(0);
-            }
-            timeSecs += 1.0 / frameRate; // disable line 520 about update timeSecs
-
-            // mTimeFrames += 1;
-            // mTimeSecs += 1.0 / frameRate;
 
             if (frameLimit > 0 && fcount >= frameLimit)
             // if (mTimeFrames > 30)
             {
                 std::exit(0);
             }
+            timeSecs += 1.0 / frameRate; // disable line 520 about update timeSecs
+        }
+
+        if (fCount_rt == 20)
+        {
+            setResolution(854, 480);
+            // setFrameRate(10);
         }
 
         fCount_rt += 1;
@@ -1231,178 +1213,18 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
         mTimeSecs += 1.0 / frameRate;
     }
 
-    std::string stimuliString = "A"; // "A"
-    if ((stimuliState == stimuli_state_t::DROPJOD04 && !switchAB) || (stimuliState == stimuli_state_t::DROPJOD06 && switchAB))
-        stimuliString = "B"; // "B"
 
     // stimuliString += (vrrON ? " vrr ON\n" : " vrr OFF\n");
-    // stimuliString += "speed "+ std::to_string(speed) + "\n";
-    // stimuliString += "bitrate "+ std::to_string(bitRate) + "\n";
-    // stimuliString += std::to_string(mHeight) + "p, " + std::to_string(frameRate) + " FPS\n";
-    // stimuliString += ((stimuliState == stimuli_state_t::DROPJOD04) ? " dropjod 0.4" : " dropjod 0.6");
-    getTextRenderer().render(pRenderContext, stimuliString, pTargetFbo, {20, 20});
+    // getTextRenderer().render(pRenderContext, stimuliString, pTargetFbo, {20, 20});
 
     mOldWidth = mWidth;
     mOldHeight = mHeight;
     ++currentResolutionFrameLength;
+    getTextRenderer().render(pRenderContext, getFrameRate().getMsg(), pTargetFbo, {20, 20});
+
 }
 
 
-// // called in sampleapp renderframe()
-// void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& pTargetFbo)
-// {
-
-//     double startTime = 0.0;
-//     startTime = getCurrentTime(); // Capture the start time
-//     pRenderContext->clearFbo(pTargetFbo.get(), kClearColor, 1.0f, 0, FboAttachmentType::All);
-
-//     if (mSwitchOnNext == 1) {
-
-//         std::string trialString = "Trial " + std::to_string(mCurrentTrial + 2) + " of " + std::to_string(mConditions.size());
-//         getTextRenderer().render(pRenderContext, trialString, pTargetFbo, {0.25 * (960 - 200), 0.25 * 540});
-//         mSwitchOnNext = 2;
-//         return;
-
-//     } else if (mSwitchOnNext == 2) {
-
-//         switchToNextPair();
-//         mSwitchOnNext = 0;
-//     }
-
-//     if (mpScene)
-//     {
-//         Scene::UpdateFlags updates = mpScene->update(pRenderContext, mCurrentCondition.stimulus1.speed * ((double)mTimeFrames / frameRate)); // 2* timesec, 0.5
-//         std::cout << "Scene animation duration(s): " << mpScene->getAnimationDurationSecs() << "\n";
-//         if (is_set(updates, Scene::UpdateFlags::GeometryChanged))
-//             FALCOR_THROW("This sample does not support scene geometry changes.");
-//         if (is_set(updates, Scene::UpdateFlags::RecompileNeeded))
-//             FALCOR_THROW("This sample does not support scene changes that require shader recompilation.");
-
-//         mpRenderGraph->execute(mpRenderContextDecode); // mpRenderContextDecode pRenderContext
-//         InterlockedIncrement(&mNDecodeFenceVal);
-
-//         if (mRayTrace)
-//             renderRT(mpRenderContextDecode, pTargetFbo, mWidth1920, mHeight1080); // mpRenderContextDecode pRenderContext
-//         else
-//             renderRaster(pRenderContext, pTargetFbo);
-
-//         // // blit from one frame buffer (or texture) to another
-//         // // displaying the final rendered image to the screen, framebuffer represents the final render target, usually the screen or a backbuffer
-//         // // pRenderContext->blit(mpRenderGraph->getOutput("TAA.colorOut")->getSRV(), pTargetFbo->getRenderTargetView(0));
-
-//         cpuWaitForFencePoint(mpDecodeFence->getNativeHandle().as<ID3D12Fence*>(), mNDecodeFenceVal);
-//         // blit TAA.colorOut into smaller texture, want to encode smaller texture
-
-//         pRenderContext->blit(mpRenderGraph->getOutput("TAA.colorOut")->getSRV(), mPEncoderInputTexture360->getRTV(0));
-//         pRenderContext->blit(mpRenderGraph->getOutput("TAA.colorOut")->getSRV(), mPEncoderInputTexture480->getRTV(0));
-//         pRenderContext->blit(mpRenderGraph->getOutput("TAA.colorOut")->getSRV(), mPEncoderInputTexture720->getRTV(0));
-//         pRenderContext->blit(mpRenderGraph->getOutput("TAA.colorOut")->getSRV(), mPEncoderInputTexture864->getRTV(0));
-//         pRenderContext->blit(mpRenderGraph->getOutput("TAA.colorOut")->getSRV(), mPEncoderInputTexture1080->getRTV(0));
-
-//         if (outputReferenceFrames && (mTimeFrames > 0))
-//         {
-//             std::string path = refBaseFilePath + std::to_string(mTimeFrames) + ".png";
-//             mpRenderGraph->getOutput("TAA.colorOut")->asTexture()->captureToFile(0, 0, path, Bitmap::FileFormat::PngFile);
-//         }
-
-//         encodeFrameBuffer(); // write encoded data into h264
-//         decodeFrameBuffer(); // mDecodedFrame updated, then call handlePictureDecode
-
-//         if (mTimeFrames >= 2)
-//         {
-//             std::cout << "\nframeCount: " << mTimeFrames << "\n";
-//             std::cout << "bitrate : " << bitRate << "\n";
-//             std::cout << "resolution : " << mWidth << "x" << mHeight << "\n";
-//             std::cout << "framerate : " << frameRate << "\n";
-//             std::cout << "speed : " << speed << "\n";
-
-//             if (mDecodeLock != 0)
-//             {
-//                 pRenderContext->blit(mPDecoderOutputTexture1080->getSRV(), pTargetFbo->getRenderTargetView(0));
-//             }
-//             // pRenderContext->blit(mpRenderGraph->getOutput("GBuffer.mvec")->getSRV(), pTargetFbo->getRenderTargetView(0)); //  mpRtMip->getRTV() pTargetFbo->getRenderTargetView(0));
-//             //pRenderContext->blit(mpRenderGraph->getOutput("TAA.colorOut")->getSRV(), pTargetFbo->getRenderTargetView(0));
-
-
-//            if (outputDecodedFrames)
-//             {
-//                 snprintf(szDecOutFilePath, sizeof(szDecOutFilePath), "%s%d.bmp", decBaseFilePath, mTimeFrames);
-//                 mPDecoderOutputTexture1080->captureToFile(0, 0, szDecOutFilePath);
-//                 writeBMP(szDecOutFilePath, mPHostRGBAFrame, mWidth, mHeight);
-
-//                 // std::string path = decBaseFilePath + std::to_string(mTimeFrames) + ".png";
-//                 // mPHostRGBAFrame->asTexture()->captureToFile(0, 0, path, Bitmap::FileFormat::PngFile);
-//             }
-
-//             if (vrrON || runONNXModel) {
-//                 if (selectedFps != frameRate)
-//                 {
-//                     setFrameRate(selectedFps);
-//                 }
-
-//                 if (selectedHeight != mHeight && currentResolutionFrameLength >= minResolutionFrameLength)
-//                 {
-//                     setResolution(selectedWidth, selectedHeight);
-//                     currentResolutionFrameLength = 0;
-//                 }
-
-//                 if (selectedSpeed!= speed)
-//                 {
-//                     setSpeed(selectedSpeed);
-//                 }
-//             }
-
-//             std::vector<float> res_probabilities(5);
-//             std::vector<float> fps_probabilities(10);
-
-//             if (vrrON) { // drop jod 0.4
-//                 std::cout << "entering vrrON " << std::endl;
-//                 // read from csv to find fps and resolution
-//                 selectedHeight = mCurrentCondition.stimulus1.resolution;
-//                 selectedWidth = res_map_by_height[selectedHeight];
-//                 selectedFps = mCurrentCondition.stimulus1.framerate;
-//                 selectedSpeed = mCurrentCondition.stimulus1.speed;
-
-//                 std::cout << "CSV selectedHeight " << selectedHeight << " selectedWidth " << selectedWidth << ", selectedFps " << selectedFps << ", selectedSpeed" << selectedSpeed << std::endl;
-//             } else {
-//                 // selectedHeight = mCurrentCondition.stimulus2.resolution;
-//                 // selectedWidth = res_map_by_height[selectedHeight];
-//                 // selectedFps = mCurrentCondition.stimulus2.framerate;
-//                 std::cout << "NO VRR, CSV selectedHeight " << selectedHeight << " selectedWidth " << selectedWidth << ", selectedFps " << selectedFps << std::endl;
-//                 std::cout << "stimulus2 resolution " << mCurrentCondition.stimulus2.resolution << " selectedWidth " << res_map_by_height[mCurrentCondition.stimulus2.resolution] << ", selectedFps " << mCurrentCondition.stimulus2.framerate << ", selectedSpeed" << mCurrentCondition.stimulus2.speed << std::endl;
-
-//                 setResolution(res_map_by_height[mCurrentCondition.stimulus2.resolution], mCurrentCondition.stimulus2.resolution);
-//                 setFrameRate(mCurrentCondition.stimulus2.framerate);
-//                 setSpeed(mCurrentCondition.stimulus2.speed);
-//                 // resetBaseline = false;
-//             }
-
-//             // if (frameLimit > 0 && fcount >= frameLimit)
-//             // if (mTimeFrames > 30)
-//             // {
-//             //     std::exit(0);
-//             // }
-//         }
-
-//         mTimeFrames += 1;
-//         mTimeSecs += 1.0 / frameRate;
-//     }
-
-//     std::string stimuliString = "A"; // "A"
-//     if ((stimuliState == stimuli_state_t::DROPJOD04 && !switchAB) || (stimuliState == stimuli_state_t::DROPJOD06 && switchAB))
-//         stimuliString = "B"; // "B"
-
-//     // stimuliString += (vrrON ? " vrr ON\n" : " vrr OFF\n");
-//     // stimuliString += "speed "+ std::to_string(speed) + "\n";
-//     // stimuliString += "bitrate "+ std::to_string(bitRate) + "\n";
-//     // stimuliString += std::to_string(mHeight) + "p, " + std::to_string(frameRate) + " FPS\n";
-//     // stimuliString += ((stimuliState == stimuli_state_t::DROPJOD04) ? " dropjod 0.4" : " dropjod 0.6");
-//     getTextRenderer().render(pRenderContext, stimuliString, pTargetFbo, {20, 20});
-
-//     mOldWidth = mWidth;
-//     mOldHeight = mHeight;
-//     ++currentResolutionFrameLength;
-// }
 
 void EncodeDecode::onGuiRender(Gui* pGui)
 {
@@ -2881,7 +2703,7 @@ void EncodeDecode::setFrameRate(unsigned int fps)
 
     SampleApp::setTargetFramerate(fps);
     frameRate = fps; // Assign the private member
-    targetFrameTime = 1.0f / frameRate;
+    // targetFrameTime = 1.0f / frameRate;
     std::cout << "setting frame rate to: " << frameRate << "\n";
 
     if (mHEncoder != nullptr)
@@ -2903,7 +2725,9 @@ void EncodeDecode::setResolution(unsigned int width, unsigned int height)
 {
     mWidth = width;
     mHeight = height;
-    // prevmHeight = height;
+    std::cout << "mWidth  " << mWidth << " mHeight  " << mHeight << "\n";
+    getWindow()->resize(width, height); // Internally resizes the swapchain (back buffer)
+
 
     // std::cout << "Setting resolution to: " << width << "x" << height << "\n";
 
