@@ -510,44 +510,16 @@ void EncodeDecode::onLoad(RenderContext* pRenderContext)
     }
     mpRenderContextDecode = pRenderContext;
 
-    // loadAllScenes();
     // set bitrate, scene for the first pair
     std::cout << "onloading mCurrentTrial " << mCurrentTrial << std::endl;
     mCurrentCondition = mConditions[mCurrentTrial];
 
-    // setScene(mCurrentCondition.stimulus1.sceneIndex);
-    // setFrameRate(60);
-    // setFrameRate(30);
-
-    if (runONNXModel)
-        setFrameRate(166);
-    // setFrameRate(mCurrentCondition.stimulus1.framerate);
-    // setBitRate(mCurrentCondition.stimulus1.bitrate);
-    // setSpeed(mCurrentCondition.stimulus1.speed);
-    // if (mCurrentCondition.stimulus1.bitrate > 5000) {
-    //     setResolution(1920, 1080);
-    // } else {
-    // //    setResolution(1920, 1080);
-    //    setResolution(1280, 720);
-    // }
-    // setResolution(1920, 1080);
-    // loadScene(kDefaultScene, getTargetFbo().get());
-
-
-    // if (runONNXModel)
-    //     initDirectML();
     initEncoder();
     initDecoder();
     std::cout << "load scene: " << std::endl;
 
     // readFrameData("C:/Users/15142/new/Falcor/Source/Samples/EncodeDecode/nn_results.txt");
     loadScene(kDefaultScene, getTargetFbo().get());
-
-    // setScene(0);
-    // readCsv(csvPaths[pairIndex], frameNumbersCSV, resProbabilitiesCSV, fpsProbabilitiesCSV);
-    // auto [bitrateCSV, speedCSV] = extractBitrateAndSpeed(csvPaths[pairIndex]);
-    // resetBitRate(bitrateCSV); // TODO: should we reset bitrate for runonnxmodel?
-    // setSpeed(speedCSV);
 
     Properties gBufferProps = {};
     Properties fXAAProps = {};
@@ -578,15 +550,6 @@ void EncodeDecode::onLoad(RenderContext* pRenderContext)
     // allocate memory so encoder can work with what we need
     makeEncoderInputBuffers(6);
     makeEncoderOutputBuffers(1);
-
-    // initializeProbabilities(frameRate, mHeight); // initialize p_res, p_fps
-    selectedSpeed = speed;
-    selectedFps = frameRate;
-    selectedHeight = mHeight;
-    selectedWidth = res_map_by_height[mHeight];
-    std::cout << "onload selectedFps: " << selectedFps << " selectedHeight " << selectedHeight << " selectedWidth " << selectedWidth << "\n";
-
-
 }
 
 void EncodeDecode::onResize(uint32_t width, uint32_t height)
@@ -734,60 +697,15 @@ void EncodeDecode::readCsv(const std::string& filename, int& resolution, int& fp
 }
 
 
-/*
 
-@TODO:
-    Randomise order of condition list.
-
-
-*/
 // sequences picked by Plot_HPC pick_sequences.py
 void EncodeDecode::initPairList() {
-    //                 std::string inferenceDir1 = getInferencePathNameForStimulus(&s1);
-    //                 std::string inferenceFileName1 = getInferenceFileNameForStimulus(&s1);
-    //                 std::string inferenceFilePath1 = inferenceDir1 + inferenceFileName1;
-    //                 readCsv(inferenceFilePath1, s1.resolution, s1.framerate);
-
-
     // max jod vs 0.25
     manager.addStimulus(ExperimentStimulus("living_room", "path2_seg3_1", 2000, 720, 90, 1.f, 0.4f, 0));
     manager.addStimulus(ExperimentStimulus("living_room", "path2_seg3_1", 2000, 1080, 120, 1.f, 0.6f, 0));
 
-    // manager.addStimulus(ExperimentStimulus("living_room", "path1_seg3_3", 1500, 720, 100, 3.f, 0.4f, 12));
-    // manager.addStimulus(ExperimentStimulus("living_room", "path1_seg3_3", 1500, 480, 100, 3.f, 0.6f, 12));
-    // manager.addStimulus(ExperimentStimulus("living_room", "path4_seg1_2", 1000, 720, 80, 2.f, 0.4f, 13));
-    // manager.addStimulus(ExperimentStimulus("living_room", "path4_seg1_2", 1000, 480, 70, 2.f, 0.6f, 13));
-    // manager.addStimulus(ExperimentStimulus("living_room", "path1_seg1_1", 500, 720, 70, 1.f, 0.4f, 14));
-    // manager.addStimulus(ExperimentStimulus("living_room", "path1_seg1_1", 500, 480, 60, 1.f, 0.6f, 14));
-
-    // manager.addStimulus(ExperimentStimulus("lost_empire", "path1_seg1_3", 1500, 720, 100, 3.f, 0.4f, 15));
-    // manager.addStimulus(ExperimentStimulus("lost_empire", "path1_seg1_3", 1500, 480, 100, 3.f, 0.6f, 15));
-    // manager.addStimulus(ExperimentStimulus("lost_empire", "path1_seg3_1", 1500, 720, 80, 1.f, 0.4f, 16));
-    // manager.addStimulus(ExperimentStimulus("lost_empire", "path1_seg3_1", 1500, 480, 80, 1.f, 0.6f, 16));
-    // manager.addStimulus(ExperimentStimulus("lost_empire", "path3_seg1_1", 1500, 720, 80, 1.f, 0.4f, 17));
-    // manager.addStimulus(ExperimentStimulus("lost_empire", "path3_seg1_1", 1500, 720, 60, 1.f, 0.6f, 17));
-
-    // manager.addStimulus(ExperimentStimulus("room", "path1_seg1_2", 1000, 720, 80, 2.f, 0.4f, 18));
-    // manager.addStimulus(ExperimentStimulus("room", "path1_seg1_2", 1000, 480, 80, 2.f, 0.6f, 18));
-    // manager.addStimulus(ExperimentStimulus("room", "path2_seg2_2", 1500, 720, 80, 2.f, 0.4f, 19));
-    // manager.addStimulus(ExperimentStimulus("room", "path2_seg2_2", 2000, 480, 80, 2.f, 0.6f, 19));
-    // manager.addStimulus(ExperimentStimulus("room", "path3_seg3_1", 1000, 720, 80, 1.f, 0.4f, 20));
-    // manager.addStimulus(ExperimentStimulus("room", "path3_seg3_1", 1000, 480, 80, 1.f, 0.6f, 20));
-
-    // manager.addStimulus(ExperimentStimulus("suntemple", "path3_seg1_1", 2000, 720, 80, 1.f, 0.4f, 21));
-    // manager.addStimulus(ExperimentStimulus("suntemple", "path3_seg1_1", 2000, 480, 80, 1.f, 0.6f, 21));
-    // manager.addStimulus(ExperimentStimulus("suntemple", "path5_seg2_1", 2000, 720, 80, 1.f, 0.4f, 22));
-    // manager.addStimulus(ExperimentStimulus("suntemple", "path5_seg2_1", 2000, 480, 80, 1.f, 0.6f, 22));
-    // manager.addStimulus(ExperimentStimulus("suntemple", "path1_seg2_2", 1000, 720, 50, 2.f, 0.4f, 23));
-    // manager.addStimulus(ExperimentStimulus("suntemple", "path1_seg2_2", 1000, 480, 40, 2.f, 0.6f, 23));
-
     manager.generateConditions(mConditions);
     std::cout << "mConditions size " << mConditions.size() << "\n";
-
-
-
-    // auto rng = std::default_random_engine {};
-    // std::shuffle(std::begin(mConditions), std::end(mConditions), rng);
 
     std::random_device r;
     std::seed_seq seed{r(), r(), r(), r(), r(), r(), r(), r()};
