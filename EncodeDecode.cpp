@@ -516,13 +516,13 @@ void EncodeDecode::onLoad(RenderContext* pRenderContext)
     mCurrentCondition = mConditions[mCurrentTrial];
 
     setScene(mCurrentCondition.stimulus1.sceneIndex);
-    setFrameRate(60);
+    // setFrameRate(60);
     // setFrameRate(30);
 
     if (runONNXModel)
         setFrameRate(166);
     // setFrameRate(mCurrentCondition.stimulus1.framerate);
-    setBitRate(mCurrentCondition.stimulus1.bitrate);
+    // setBitRate(mCurrentCondition.stimulus1.bitrate);
     // setSpeed(mCurrentCondition.stimulus1.speed);
     // if (mCurrentCondition.stimulus1.bitrate > 5000) {
     //     setResolution(1920, 1080);
@@ -2874,7 +2874,7 @@ int runMain(int argc, char** argv)
     unsigned int width = 1280; // 1920 1280
     unsigned int height = 720; // 1080 720
     unsigned int bitrate = 8000;
-    // unsigned int framerate = 30;
+    unsigned int framerate = 30;
     // std::string scene = "crytek_sponza";
     // unsigned int speedInput = 1;
     // std::string scenePath = "crytek_sponza/path1_seg1.fbx"; // no texture, objects are black
@@ -2891,8 +2891,8 @@ int runMain(int argc, char** argv)
     config.windowDesc.resizableWindow = true;
 
     EncodeDecode encodeDecode(config);
-    encodeDecode.setBitRate(bitrate * 1000); // 3000 bits per second,  3000 000 bits per second
-    // encodeDecode.setFrameRate(framerate);
+    encodeDecode.setBitRate(bitrate); // 3000 bits per second,  3000 000 bits per second
+    encodeDecode.setFrameRate(framerate);
     // encodeDecode.setDefaultScene(scenePath);
     // encodeDecode.setSpeed(speedInput);
 
