@@ -510,12 +510,12 @@ void EncodeDecode::onLoad(RenderContext* pRenderContext)
     }
     mpRenderContextDecode = pRenderContext;
 
-    loadAllScenes();
+    // loadAllScenes();
     // set bitrate, scene for the first pair
     std::cout << "onloading mCurrentTrial " << mCurrentTrial << std::endl;
     mCurrentCondition = mConditions[mCurrentTrial];
 
-    setScene(mCurrentCondition.stimulus1.sceneIndex);
+    // setScene(mCurrentCondition.stimulus1.sceneIndex);
     // setFrameRate(60);
     // setFrameRate(30);
 
@@ -541,7 +541,7 @@ void EncodeDecode::onLoad(RenderContext* pRenderContext)
     std::cout << "load scene: " << std::endl;
 
     // readFrameData("C:/Users/15142/new/Falcor/Source/Samples/EncodeDecode/nn_results.txt");
-    // loadScene(kDefaultScene, getTargetFbo().get());
+    loadScene(kDefaultScene, getTargetFbo().get());
 
     // setScene(0);
     // readCsv(csvPaths[pairIndex], frameNumbersCSV, resProbabilitiesCSV, fpsProbabilitiesCSV);
@@ -2541,6 +2541,85 @@ void EncodeDecode::setExperimentCSVPrefix(std::string filename)
 //     // mpScene = Scene::create(getDevice(), path);
 // }
 
+void EncodeDecode::loadScene(const std::filesystem::path& path, const Fbo* pTargetFbo)
+{
+    mpScene = Scene::create(getDevice(), path);
+    mpCamera = mpScene->getCamera();
+
+    // mpScene->setCameraController(Scene::CameraControllerType::Orbiter);
+    // mpCamCtrl = std::make_unique<OrbiterCameraController>(mpCamera);
+
+    // Update the controllers
+    float radius = mpScene->getSceneBounds().radius();
+    // std::cout << "speed: " << radius * 0.25f << "\n"; // 3.24528
+    mpScene->setCameraSpeed(10.f); // radius * 0.25f
+    float nearZ = std::max(0.1f, radius / 750.0f);
+    float farZ = radius * 10;
+
+    // mpCamera->setPosition(Falcor::float3(7.35889, -6.92579, 4.95831));
+
+    mpCamera->setDepthRange(nearZ, farZ);
+    mpCamera->setAspectRatio((float)pTargetFbo->getWidth() / (float)pTargetFbo->getHeight());
+
+    std::cout << '\n';
+    std::cout << "pTargetFbo Width: " << (float)pTargetFbo->getWidth() << std::endl;
+    std::cout << "pTargetFbo Height: " << (float)pTargetFbo->getHeight() << std::endl;
+    std::cout << '\n';
+
+    // Get shader modules and type conformances for types used by the scene.
+    // These need to be set on the program in order to use Falcor's material system.
+    auto shaderModules = mpScene->getShaderModules();
+    auto typeConformances = mpScene->getTypeConformances();
+
+    // Get scene defines. These need to be set on any program using the scene.
+    auto defines = mpScene->getSceneDefines();
+
+    // Create raster pass.
+    // This utility wraps the creation of the program and vars, and sets the necessary scene defines.
+    ProgramDesc rasterProgDesc;
+    rasterProgDesc.addShaderModules(shaderModules);
+    rasterProgDesc.addShaderLibrary("Samples/EncodeDecode/EncodeDecode.3d.slang").vsEntry("vsMain").psEntry("psMain");
+    rasterProgDesc.addTypeConformances(typeConformances);
+
+    // rasterpass
+    mpRasterPass = RasterPass::create(getDevice(), rasterProgDesc, defines);
+
+    // We'll now create a raytracing program. To do that we need to setup two things:
+    // - A program description (ProgramDesc). This holds all shader entry points, compiler flags, macro defintions,
+    // etc.
+    // - A binding table (RtBindingTable). This maps shaders to geometries in the scene, and sets the ray generation and
+    // miss shaders.
+    //
+    // After setting up these, we can create the Program and associated RtProgramVars that holds the variable/resource
+    // bindings. The Program can be reused for different scenes, but RtProgramVars needs to binding table which is
+    // Scene-specific and needs to be re-created when switching scene. In this example, we re-create both the program
+    // and vars when a scene is loaded.
+
+    ProgramDesc rtProgDesc;
+    rtProgDesc.addShaderModules(shaderModules);
+    rtProgDesc.addShaderLibrary("Samples/EncodeDecode/EncodeDecode.rt.slang");
+    rtProgDesc.addTypeConformances(typeConformances);
+    rtProgDesc.addTypeConformances(typeConformances);
+    rtProgDesc.setMaxTraceRecursionDepth(3); // 1 for calling TraceRay from RayGen, 1 for calling it from the
+                                             // primary-ray ClosestHit shader for reflections, 1 for reflection ray
+                                             // tracing a shadow ray
+    rtProgDesc.setMaxPayloadSize(24);        // The largest ray payload struct (PrimaryRayData) is 24 bytes. The payload size
+                                             // should be set as small as possible for maximum performance.
+
+    ref<RtBindingTable> sbt = RtBindingTable::create(2, 2, mpScene->getGeometryCount());
+    sbt->setRayGen(rtProgDesc.addRayGen("rayGen"));
+    sbt->setMiss(0, rtProgDesc.addMiss("primaryMiss"));
+    sbt->setMiss(1, rtProgDesc.addMiss("shadowMiss"));
+    auto primary = rtProgDesc.addHitGroup("primaryClosestHit", "primaryAnyHit");
+    auto shadow = rtProgDesc.addHitGroup("", "shadowAnyHit");
+    sbt->setHitGroup(0, mpScene->getGeometryIDs(Scene::GeometryType::TriangleMesh), primary);
+    sbt->setHitGroup(1, mpScene->getGeometryIDs(Scene::GeometryType::TriangleMesh), shadow);
+
+    mpRaytraceProgram = Program::create(getDevice(), rtProgDesc, defines);
+    mpRtVars = RtProgramVars::create(getDevice(), mpRaytraceProgram, sbt);
+}
+
+
 void EncodeDecode::loadAllScenes() {
     // preloading takes time
 
@@ -2875,9 +2954,9 @@ int runMain(int argc, char** argv)
     unsigned int height = 720; // 1080 720
     unsigned int bitrate = 8000;
     unsigned int framerate = 30;
-    // std::string scene = "crytek_sponza";
-    // unsigned int speedInput = 1;
-    // std::string scenePath = "crytek_sponza/path1_seg1.fbx"; // no texture, objects are black
+    std::string scene = "crytek_sponza";
+    unsigned int speedInput = 1;
+    std::string scenePath = "crytek_sponza/path1_seg1.fbx"; // no texture, objects are black
 
 
     // unsigned int speedInput = 1;
@@ -2893,8 +2972,8 @@ int runMain(int argc, char** argv)
     EncodeDecode encodeDecode(config);
     encodeDecode.setBitRate(bitrate); // 3000 bits per second,  3000 000 bits per second
     encodeDecode.setFrameRate(framerate);
-    // encodeDecode.setDefaultScene(scenePath);
-    // encodeDecode.setSpeed(speedInput);
+    encodeDecode.setDefaultScene(scenePath);
+    encodeDecode.setSpeed(speedInput);
 
 
     // std::cout << "encodeDecode.recordExperiment" << encodeDecode.recordExperiment << std::endl;
