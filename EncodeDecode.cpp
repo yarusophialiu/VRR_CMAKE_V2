@@ -1051,6 +1051,11 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
     static double timeSecs = 0; // timeSecs is the time through animation, i.e. camera path
     if (mpScene)
     {
+        // if (timeSecs > 2)
+        // {
+        //     // reset framerate, bitrate, resolution, speed
+        //     // end h265 file
+        // }
         Scene::UpdateFlags updates = mpScene->update(pRenderContext, mCurrentCondition.stimulus1.speed * timeSecs); // 2* timesec, 0.5
         // Scene::UpdateFlags updates = mpScene->update(pRenderContext, mCurrentCondition.stimulus1.speed * ((double)mTimeFrames / frameRate)); // 2* timesec, 0.5
         std::cout << "Scene animation duration(s): " << mpScene->getAnimationDurationSecs() << "\n";
@@ -1067,11 +1072,11 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
         std::cout << "fcount " << fcount << "\n";
         // std::cout << "frameLimit " << frameLimit << "\n";
 
-        mpRenderGraph->execute(mpRenderContextDecode); // mpRenderContextDecode pRenderContext
+        mpRenderGraph->execute(mpRenderContextDecode);
         InterlockedIncrement(&mNDecodeFenceVal);
 
         if (mRayTrace)
-            renderRT(mpRenderContextDecode, pTargetFbo, mWidth, mHeight); // mpRenderContextDecode pRenderContext
+            renderRT(mpRenderContextDecode, pTargetFbo, mWidth, mHeight);
         else
             renderRaster(pRenderContext, pTargetFbo);
 
@@ -1119,11 +1124,11 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
             timeSecs += 1.0 / frameRate; // disable line 520 about update timeSecs
         }
 
-        if (fCount_rt == 20)
-        {
-            setResolution(854, 480);
-            // setFrameRate(10);
-        }
+        // if (fCount_rt == 20)
+        // {
+        //     setResolution(854, 480);
+        //     // setFrameRate(10);
+        // }
 
         fCount_rt += 1;
         ++fcount;
@@ -1414,14 +1419,39 @@ void EncodeDecode::initEncoder()
 
     if (outputEncodedFrames)
         {
+            // generate outputfile name with timestamp
             std::ostringstream newFilePath;
-            // newFilePath << "encodedH264/enc_" << bitRate << "_" << frameRate << "_" <<  mHeight << ".h264";
-            newFilePath << szRefPrefixFilePath << bitRate << "_" << frameRate << "_" <<  mHeight << ".h264";
+            std::time_t t = std::time(nullptr);
+            std::tm tm = *std::localtime(&t);
+            char dateStr[11];
+            std::strftime(dateStr, sizeof(dateStr), "%Y-%m-%d", &tm);
+            // Remove extension and replace slashes with underscores in scenePath, sceneNameOnly e.g. path1_seg1
+            std::string sceneNameOnly = std::regex_replace(kDefaultScene, std::regex(R"(\.fbx$)"), "");
+            std::replace(sceneNameOnly.begin(), sceneNameOnly.end(), '/', '_');
 
+            std::string sceneFull(kDefaultScene);
+            std::string sceneFolder = sceneFull.substr(0, sceneFull.find('/')); // e.g. lost_empire
+            std::cout << "Scene name: " << sceneName << std::endl;
+            newFilePath << "encodedH264/"
+                << dateStr << "/"
+                << sceneFolder << "/"
+                << sceneNameOnly << "_" << speed << "/"
+                << bitRate << "/"
+                << bitRate << "_" << frameRate << "_" << mHeight << ".h265";
+
+            std::filesystem::create_directories(newFilePath.str().substr(0, newFilePath.str().find_last_of('/')));
+            // Copy to buffer safely
             strncpy(szOutFilePath, newFilePath.str().c_str(), sizeof(szOutFilePath));
-            szOutFilePath[sizeof(szOutFilePath) - 1] = '\0'; // Ensure null-termination
-            std::cout << "create szOutFilePath: " << szOutFilePath << std::endl;
-            std::cout << "default scene: " << kDefaultScene << std::endl;
+            szOutFilePath[sizeof(szOutFilePath) - 1] = '\0';
+            std::cout << "Output path: " << szOutFilePath << std::endl;
+
+
+            // // newFilePath << "encodedH264/enc_" << bitRate << "_" << frameRate << "_" <<  mHeight << ".h264";
+            // newFilePath << szRefPrefixFilePath << bitRate << "_" << frameRate << "_" <<  mHeight << ".h265";
+            // strncpy(szOutFilePath, newFilePath.str().c_str(), sizeof(szOutFilePath));
+            // szOutFilePath[sizeof(szOutFilePath) - 1] = '\0'; // Ensure null-termination
+            // std::cout << "create szOutFilePath: " << szOutFilePath << std::endl;
+            // std::cout << "default scene: " << kDefaultScene << std::endl;
 
             fpEncOut = new std::ofstream(szOutFilePath, std::ios::out | std::ios::binary | std::ios::app);
 
@@ -1890,12 +1920,12 @@ NVENCSTATUS EncodeDecode::encodeFrameBuffer()
 
     waitForCompletionEvent(bufferIndex); // wait for nvEncEncodePicture to finish
 
-    // // write encoded frames to out_.h264
-    // if (outputEncodedFrames)
-    // {
-    //     // std::cout << "write encoded h264 to: " << szOutFilePath << std::endl;
-    //     fpEncOut->write(reinterpret_cast<char*>(mVEncodeOutData.data()), mVEncodeOutData.size());
-    // }
+    // write encoded frames to out_.h264
+    if (outputEncodedFrames)
+    {
+        // std::cout << "write encoded h264 to: " << szOutFilePath << std::endl;
+        fpEncOut->write(reinterpret_cast<char*>(mVEncodeOutData.data()), mVEncodeOutData.size());
+    }
 
     mVEncodeOutData.clear(); // clear the previous encoded frame
 
@@ -2876,9 +2906,13 @@ int runMain(int argc, char** argv)
     unsigned int speedInput = 1;
     std::string scenePath = "crytek_sponza/path1_seg1.fbx"; // no texture, objects are black
 
-
-    // unsigned int speedInput = 1;
-    // std::cout << "speed " << speedInput << std::endl;
+    std::cout << "\n\nframerate runmain  " << framerate << "\n";
+    std::cout << "bitrate runmain  " << bitrate << "\n";
+    std::cout << "width runmain  " << width << "\n";
+    std::cout << "height runmain  " << height << "\n";
+    std::cout << "scene " << scene << std::endl;
+    std::cout << "speed " << speedInput << std::endl;
+    std::cout << "scenePath " << scenePath << std::endl;
 
     SampleAppConfig config;
     config.windowDesc.title = "EncodeDecode";
@@ -2892,16 +2926,6 @@ int runMain(int argc, char** argv)
     encodeDecode.setFrameRate(framerate);
     encodeDecode.setDefaultScene(scenePath);
     encodeDecode.setSpeed(speedInput);
-
-
-    // std::cout << "encodeDecode.recordExperiment" << encodeDecode.recordExperiment << std::endl;
-    // if (encodeDecode.recordExperiment) // only work if run from git bash
-    // {
-    //     std::cout << "enter if" << std::endl;
-    //     std::string experimentFilename = generateTimestampFilename("Experiment", "");
-    //     std::cout << "Experiment filename is " << experimentFilename << std::endl;
-    //     encodeDecode.setExperimentCSVPrefix(experimentFilename);
-    // }
 
     return encodeDecode.run();
 }
