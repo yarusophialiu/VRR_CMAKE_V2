@@ -603,6 +603,7 @@ public:
     size_t mCurrentSettingIndex = 0;
     double mAnimationTimeSecs = 0.0; // mTimeSecs
     void generateSettings();
+    void applyNewSetting(const EncodingSetting& setting);
 
     std::vector<int> frameNumbersCSV1;
     std::vector<int> frameNumbersCSV2;

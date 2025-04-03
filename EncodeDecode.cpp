@@ -510,6 +510,8 @@ void EncodeDecode::onLoad(RenderContext* pRenderContext)
     }
     mpRenderContextDecode = pRenderContext;
 
+    // set bitrate, framerate, resolution for the first pair
+    generateSettings();
     // set bitrate, scene for the first pair
     std::cout << "onloading mCurrentTrial " << mCurrentTrial << std::endl;
     mCurrentCondition = mConditions[mCurrentTrial];
@@ -1051,7 +1053,51 @@ void EncodeDecode::generateSettings()
     }
 }
 
+void EncodeDecode::applyNewSetting(const EncodingSetting& setting)
+{
+    setResolution(setting.mWidth, setting.mHeight);
+    setFrameRate(setting.mFps);
+    setBitRate(setting.mBitrate);
 
+    if (outputEncodedFrames)
+        {
+            // generate outputfile name with timestamp
+            std::ostringstream newFilePath;
+            std::time_t t = std::time(nullptr);
+            std::tm tm = *std::localtime(&t);
+            char dateStr[11];
+            std::strftime(dateStr, sizeof(dateStr), "%Y-%m-%d", &tm);
+            // Remove extension and replace slashes with underscores in scenePath, sceneNameOnly e.g. path1_seg1
+            std::string sceneNameOnly = std::regex_replace(kDefaultScene, std::regex(R"(\.fbx$)"), "");
+            std::replace(sceneNameOnly.begin(), sceneNameOnly.end(), '/', '_');
+
+            std::string sceneFull(kDefaultScene);
+            std::string sceneFolderName = sceneFull.substr(0, sceneFull.find('/')); // e.g. lost_empire
+            std::cout << "Scene name: " << sceneFolderName << std::endl;
+            newFilePath << "encodedH264/"
+                << dateStr << "/"
+                << sceneFolderName << "/"
+                << sceneNameOnly << "_" << speed << "/"
+                << bitRate << "/"
+                << bitRate << "_" << frameRate << "_" << mHeight << ".h265";
+
+            std::filesystem::create_directories(newFilePath.str().substr(0, newFilePath.str().find_last_of('/')));
+            // Copy to buffer safely
+            strncpy(szOutFilePath, newFilePath.str().c_str(), sizeof(szOutFilePath));
+            szOutFilePath[sizeof(szOutFilePath) - 1] = '\0';
+            std::cout << "Output path: " << szOutFilePath << std::endl;
+
+            fpEncOut = new std::ofstream(szOutFilePath, std::ios::out | std::ios::binary | std::ios::app);
+
+            if (!fpEncOut)
+            {
+                std::ostringstream err;
+                err << "/n/n/nunable to open output file: " << szOutFilePath << std::endl;
+                throw std::invalid_argument(err.str());
+            }
+        }
+    std::cout << "Started encoding: " << szOutFilePath << "\n";
+}
 
 // called in sampleapp renderframe()
 void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& pTargetFbo)
@@ -1071,13 +1117,15 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
                 fpEncOut = nullptr;
             }
             mCurrentSettingIndex++;
-            // mAnimationTimeSecs = 0.0;
+            mAnimationTimeSecs = 0.0;
 
             if (mCurrentSettingIndex >= mSettings.size())
             {
                 std::cout << "Done rendering all settings.\n";
                 return;
             }
+
+            applyNewSetting(mSettings[mCurrentSettingIndex]);
         }
         Scene::UpdateFlags updates = mpScene->update(pRenderContext, mCurrentCondition.stimulus1.speed * mAnimationTimeSecs); // 2* timesec, 0.5
         // Scene::UpdateFlags updates = mpScene->update(pRenderContext, mCurrentCondition.stimulus1.speed * timeSecs); // 2* timesec, 0.5
