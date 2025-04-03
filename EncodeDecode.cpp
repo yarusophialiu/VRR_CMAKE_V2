@@ -1027,6 +1027,31 @@ void EncodeDecode::processNNOutput(std::vector<float>& outputResTensorValues,
 }
 
 
+void EncodeDecode::generateSettings()
+{
+    std::vector<int> bitrates = {1000, 1500, 2000, 3000, 4000};
+    std::vector<int> framerates = {30, 40, 50, 60, 70, 80, 90, 100, 110, 120};
+    std::vector<std::pair<int, int>> resolutions = {
+        {1920, 1080},
+        {1536, 864},
+        {1280, 720},
+        {854, 480},
+        {640, 360}
+    };
+
+    for (int b : bitrates)
+    {
+        for (auto [w, h] : resolutions)
+        {
+            for (int f : framerates)
+            {
+                mSettings.emplace_back(f, w, h, b);
+            }
+        }
+    }
+}
+
+
 
 // called in sampleapp renderframe()
 void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& pTargetFbo)

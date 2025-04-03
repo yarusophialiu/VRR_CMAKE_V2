@@ -595,6 +595,15 @@ public:
     std::string nnOutputFilename = "";
     std::string experimentFilename = "";
 
+
+    /*
+        generate h265 dataset
+    */
+    std::vector<EncodingSetting> mSettings;
+    size_t mCurrentSettingIndex = 0;
+    double mAnimationTimeSecs = 0.0; // mTimeSecs
+    void generateSettings();
+
     std::vector<int> frameNumbersCSV1;
     std::vector<int> frameNumbersCSV2;
     std::vector<std::vector<float>> resProbabilitiesCSV1;
