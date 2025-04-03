@@ -1063,13 +1063,24 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
     static double timeSecs = 0; // timeSecs is the time through animation, i.e. camera path
     if (mpScene)
     {
-        if (timeSecs > 2)
+        if (mAnimationTimeSecs > 2.0)
         {
             // TODO: reset framerate, bitrate, resolution, speed
+            if (fpEncOut) {
+                fpEncOut->close(); // end h265 file but the rendering continues
+                fpEncOut = nullptr;
+            }
+            mCurrentSettingIndex++;
+            // mAnimationTimeSecs = 0.0;
 
-            fpEncOut->close(); // end h265 file but the rendering continues
+            if (mCurrentSettingIndex >= mSettings.size())
+            {
+                std::cout << "Done rendering all settings.\n";
+                return;
+            }
         }
-        Scene::UpdateFlags updates = mpScene->update(pRenderContext, mCurrentCondition.stimulus1.speed * timeSecs); // 2* timesec, 0.5
+        Scene::UpdateFlags updates = mpScene->update(pRenderContext, mCurrentCondition.stimulus1.speed * mAnimationTimeSecs); // 2* timesec, 0.5
+        // Scene::UpdateFlags updates = mpScene->update(pRenderContext, mCurrentCondition.stimulus1.speed * timeSecs); // 2* timesec, 0.5
         // Scene::UpdateFlags updates = mpScene->update(pRenderContext, mCurrentCondition.stimulus1.speed * ((double)mTimeFrames / frameRate)); // 2* timesec, 0.5
         std::cout << "Scene animation duration(s): " << mpScene->getAnimationDurationSecs() << "\n";
         if (is_set(updates, Scene::UpdateFlags::GeometryChanged))
@@ -1081,7 +1092,8 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
         static int fCount_rt = 0;
         std::cout << "fCount_rt " << fCount_rt << "\n";
         std::cout << "timeSecs " << timeSecs << "\n";
-        std::cout << "mTimeFrames " << mTimeFrames << ", mTimeFrames / frameRate" << (double)mTimeFrames / frameRate << "\n";
+        std::cout << "mAnimationTimeSecs " << mAnimationTimeSecs << "\n";
+        // std::cout << "mTimeFrames " << mTimeFrames << ", mTimeFrames / frameRate" << (double)mTimeFrames / frameRate << "\n";
         std::cout << "fcount " << fcount << "\n";
         // std::cout << "frameLimit " << frameLimit << "\n";
 
@@ -1134,7 +1146,8 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
             {
                 std::exit(0);
             }
-            timeSecs += 1.0 / frameRate; // disable line 520 about update timeSecs
+            timeSecs += 1.0 / frameRate; // disable line 520 about update timeSecs mTimeSecs
+            mAnimationTimeSecs += 1.0 / frameRate; // mTimeSecs
         }
 
         // if (fCount_rt == 20)
