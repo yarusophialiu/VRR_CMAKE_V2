@@ -714,19 +714,6 @@ void EncodeDecode::initPairList() {
 }
 
 
-// std::string EncodeDecode::getInferenceFileNameForStimulus(ExperimentStimulus* stimulus) {
-
-//     std::string result;
-
-//     // if (stimulus && stimulus->resolution == -1 && stimulus->framerate == -1) {
-
-//     //     result = stimulus->sceneName + "_" + std::to_string(stimulus->pathIndex) + "_" + std::to_string(stimulus->bitrate) + "kbps.csv";
-//     // }
-//     result = stimulus->sceneName + "_" + std::to_string(stimulus->pathIndex) + "_" + std::to_string(stimulus->bitrate) + "kbps.csv";
-//     return result;
-// }
-
-
 std::string EncodeDecode::getInferencePathNameForStimulus(ExperimentStimulus* stimulus) {
 
     if (stimulus->speed == 1) {
@@ -1051,11 +1038,12 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
     static double timeSecs = 0; // timeSecs is the time through animation, i.e. camera path
     if (mpScene)
     {
-        // if (timeSecs > 2)
-        // {
-        //     // reset framerate, bitrate, resolution, speed
-        //     // end h265 file
-        // }
+        if (timeSecs > 2)
+        {
+            // TODO: reset framerate, bitrate, resolution, speed
+
+            fpEncOut->close(); // end h265 file but the rendering continues
+        }
         Scene::UpdateFlags updates = mpScene->update(pRenderContext, mCurrentCondition.stimulus1.speed * timeSecs); // 2* timesec, 0.5
         // Scene::UpdateFlags updates = mpScene->update(pRenderContext, mCurrentCondition.stimulus1.speed * ((double)mTimeFrames / frameRate)); // 2* timesec, 0.5
         std::cout << "Scene animation duration(s): " << mpScene->getAnimationDurationSecs() << "\n";
@@ -1431,7 +1419,7 @@ void EncodeDecode::initEncoder()
 
             std::string sceneFull(kDefaultScene);
             std::string sceneFolder = sceneFull.substr(0, sceneFull.find('/')); // e.g. lost_empire
-            std::cout << "Scene name: " << sceneName << std::endl;
+            std::cout << "\n\n\nScene name: " << sceneName << std::endl;
             newFilePath << "encodedH264/"
                 << dateStr << "/"
                 << sceneFolder << "/"
