@@ -466,7 +466,6 @@ EncodeDecode::EncodeDecode(const SampleAppConfig& config) : SampleApp(config)
         mCudaDevice = 0;
         // mpRtOut = getDevice()->createTexture2D(mWidth1920, mHeight1080, ResourceFormat::BGRA8Unorm, 1, 1, nullptr, ResourceBindFlags::UnorderedAccess | ResourceBindFlags::ShaderResource);
         mpRtOut = getDevice()->createTexture2D(mWidth, mHeight, ResourceFormat::BGRA8Unorm, 1, 1, nullptr, ResourceBindFlags::UnorderedAccess | ResourceBindFlags::ShaderResource);
-        // std::cout << "bitrate: " << bitRate << std::endl;
 
         // cast into directx 12 using: ->getNativeHandle().as<ID3D12Resource*>();
         // falcor's device, createtexture3d
@@ -489,12 +488,6 @@ EncodeDecode::EncodeDecode(const SampleAppConfig& config) : SampleApp(config)
         );
 
         initPairList();
-        // if (!mConditions.empty()) {
-        //     mCurrentCondition = mConditions[0];
-        // } else {
-        //     std::cerr << "Error: mConditions is empty! No conditions were generated.\n";
-        // }
-        // mCurrentCondition = mConditions[0];
 }
 
 EncodeDecode::~EncodeDecode() {}
@@ -512,19 +505,12 @@ void EncodeDecode::onLoad(RenderContext* pRenderContext)
 
     // set bitrate, framerate, resolution for the first pair
     generateSettings();
-    applyNewSetting(mSettings[mCurrentSettingIndex]); // set bitrate, scene for the first pair
-
-
-    // // set bitrate, scene for the first pair
-    // std::cout << "onloading mCurrentTrial " << mCurrentTrial << std::endl;
-    // mCurrentCondition = mConditions[mCurrentTrial];
+    applyNewSetting(mSettings[mCurrentSettingIndex]);
+    loadScene(kDefaultScene, getTargetFbo().get());
 
     initEncoder();
     initDecoder();
     std::cout << "load scene: " << std::endl;
-
-    // readFrameData("C:/Users/15142/new/Falcor/Source/Samples/EncodeDecode/nn_results.txt");
-    loadScene(kDefaultScene, getTargetFbo().get());
 
     Properties gBufferProps = {};
     Properties fXAAProps = {};
@@ -2966,18 +2952,18 @@ int runMain(int argc, char** argv)
     // unsigned int speedInput = std::stoi(argv[6]);
     // std::string scenePath = argv[7];
 
-    unsigned int width = 1280; // 1920 1280
-    unsigned int height = 720; // 1080 720
-    unsigned int bitrate = 8000;
-    unsigned int framerate = 30;
+    unsigned int width = 1920; // 1920 1280
+    unsigned int height = 1080; // 1080 720
+    // unsigned int bitrate = 8000;
+    // unsigned int framerate = 30;
     std::string scene = "crytek_sponza";
     unsigned int speedInput = 2;
     std::string scenePath = "crytek_sponza/path1_seg1.fbx"; // no texture, objects are black
 
-    std::cout << "\n\nframerate runmain  " << framerate << "\n";
-    std::cout << "bitrate runmain  " << bitrate << "\n";
-    std::cout << "width runmain  " << width << "\n";
-    std::cout << "height runmain  " << height << "\n";
+    // std::cout << "\n\nframerate runmain  " << framerate << "\n";
+    // std::cout << "bitrate runmain  " << bitrate << "\n";
+    // std::cout << "width runmain  " << width << "\n";
+    // std::cout << "height runmain  " << height << "\n";
     std::cout << "scene " << scene << std::endl;
     std::cout << "speed " << speedInput << std::endl;
     std::cout << "scenePath " << scenePath << std::endl;
@@ -2990,8 +2976,8 @@ int runMain(int argc, char** argv)
     config.windowDesc.resizableWindow = true;
 
     EncodeDecode encodeDecode(config);
-    encodeDecode.setBitRate(bitrate); // 3000 bits per second,  3000 000 bits per second
-    encodeDecode.setFrameRate(framerate);
+    // encodeDecode.setBitRate(bitrate); // 3000 bits per second,  3000 000 bits per second
+    // encodeDecode.setFrameRate(framerate);
     encodeDecode.setDefaultScene(scenePath);
     encodeDecode.setSpeed(speedInput);
 
