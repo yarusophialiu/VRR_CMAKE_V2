@@ -512,6 +512,7 @@ void EncodeDecode::onLoad(RenderContext* pRenderContext)
 
     // set bitrate, framerate, resolution for the first pair
     generateSettings();
+    applyNewSetting(mSettings[mCurrentSettingIndex]); // set bitrate, scene for the first pair
 
 
     // // set bitrate, scene for the first pair
@@ -1034,9 +1035,9 @@ void EncodeDecode::generateSettings()
 
     for (int b : bitrates)
     {
-        for (auto [w, h] : resolutions)
+        for (int f : framerates)
         {
-            for (int f : framerates)
+            for (auto [w, h] : resolutions)
             {
                 mSettings.emplace_back(f, w, h, b);
             }
@@ -1046,6 +1047,7 @@ void EncodeDecode::generateSettings()
 
 void EncodeDecode::applyNewSetting(const EncodingSetting& setting)
 {
+    std::cout << "Inside applyNewSetting mCurrentSettingIndex" << mCurrentSettingIndex << "\n";
     setResolution(setting.mWidth, setting.mHeight);
     setFrameRate(setting.mFps);
     setBitRate(setting.mBitrate);
@@ -1134,6 +1136,7 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
         std::cout << "mAnimationTimeSecs " << mAnimationTimeSecs << "\n";
         // std::cout << "mTimeFrames " << mTimeFrames << ", mTimeFrames / frameRate" << (double)mTimeFrames / frameRate << "\n";
         std::cout << "fcount " << fcount << "\n";
+        std::cout << "mCurrentSettingIndex " << mCurrentSettingIndex << "\n";
         // std::cout << "frameLimit " << frameLimit << "\n";
 
         mpRenderGraph->execute(mpRenderContextDecode);
@@ -1482,51 +1485,51 @@ void EncodeDecode::initEncoder()
     }
 
 
-    if (outputEncodedFrames)
-        {
-            // generate outputfile name with timestamp
-            std::ostringstream newFilePath;
-            std::time_t t = std::time(nullptr);
-            std::tm tm = *std::localtime(&t);
-            char dateStr[11];
-            std::strftime(dateStr, sizeof(dateStr), "%Y-%m-%d", &tm);
-            // Remove extension and replace slashes with underscores in scenePath, sceneNameOnly e.g. path1_seg1
-            std::string sceneNameOnly = std::regex_replace(kDefaultScene, std::regex(R"(\.fbx$)"), "");
-            std::replace(sceneNameOnly.begin(), sceneNameOnly.end(), '/', '_');
+    // if (outputEncodedFrames)
+    //     {
+    //         // generate outputfile name with timestamp
+    //         std::ostringstream newFilePath;
+    //         std::time_t t = std::time(nullptr);
+    //         std::tm tm = *std::localtime(&t);
+    //         char dateStr[11];
+    //         std::strftime(dateStr, sizeof(dateStr), "%Y-%m-%d", &tm);
+    //         // Remove extension and replace slashes with underscores in scenePath, sceneNameOnly e.g. path1_seg1
+    //         std::string sceneNameOnly = std::regex_replace(kDefaultScene, std::regex(R"(\.fbx$)"), "");
+    //         std::replace(sceneNameOnly.begin(), sceneNameOnly.end(), '/', '_');
 
-            std::string sceneFull(kDefaultScene);
-            std::string sceneFolder = sceneFull.substr(0, sceneFull.find('/')); // e.g. lost_empire
-            std::cout << "\n\n\nScene name: " << sceneName << std::endl;
-            newFilePath << "encodedH264/"
-                << dateStr << "/"
-                << sceneFolder << "/"
-                << sceneNameOnly << "_" << speed << "/"
-                << bitRate << "/"
-                << bitRate << "_" << frameRate << "_" << mHeight << ".h265";
+    //         std::string sceneFull(kDefaultScene);
+    //         std::string sceneFolder = sceneFull.substr(0, sceneFull.find('/')); // e.g. lost_empire
+    //         std::cout << "\n\n\nScene name: " << sceneName << std::endl;
+    //         newFilePath << "encodedH264/"
+    //             << dateStr << "/"
+    //             << sceneFolder << "/"
+    //             << sceneNameOnly << "_" << speed << "/"
+    //             << bitRate << "/"
+    //             << bitRate << "_" << frameRate << "_" << mHeight << ".h265";
 
-            std::filesystem::create_directories(newFilePath.str().substr(0, newFilePath.str().find_last_of('/')));
-            // Copy to buffer safely
-            strncpy(szOutFilePath, newFilePath.str().c_str(), sizeof(szOutFilePath));
-            szOutFilePath[sizeof(szOutFilePath) - 1] = '\0';
-            std::cout << "Output path: " << szOutFilePath << std::endl;
+    //         std::filesystem::create_directories(newFilePath.str().substr(0, newFilePath.str().find_last_of('/')));
+    //         // Copy to buffer safely
+    //         strncpy(szOutFilePath, newFilePath.str().c_str(), sizeof(szOutFilePath));
+    //         szOutFilePath[sizeof(szOutFilePath) - 1] = '\0';
+    //         std::cout << "Output path: " << szOutFilePath << std::endl;
 
 
-            // // newFilePath << "encodedH264/enc_" << bitRate << "_" << frameRate << "_" <<  mHeight << ".h264";
-            // newFilePath << szRefPrefixFilePath << bitRate << "_" << frameRate << "_" <<  mHeight << ".h265";
-            // strncpy(szOutFilePath, newFilePath.str().c_str(), sizeof(szOutFilePath));
-            // szOutFilePath[sizeof(szOutFilePath) - 1] = '\0'; // Ensure null-termination
-            // std::cout << "create szOutFilePath: " << szOutFilePath << std::endl;
-            // std::cout << "default scene: " << kDefaultScene << std::endl;
+    //         // // newFilePath << "encodedH264/enc_" << bitRate << "_" << frameRate << "_" <<  mHeight << ".h264";
+    //         // newFilePath << szRefPrefixFilePath << bitRate << "_" << frameRate << "_" <<  mHeight << ".h265";
+    //         // strncpy(szOutFilePath, newFilePath.str().c_str(), sizeof(szOutFilePath));
+    //         // szOutFilePath[sizeof(szOutFilePath) - 1] = '\0'; // Ensure null-termination
+    //         // std::cout << "create szOutFilePath: " << szOutFilePath << std::endl;
+    //         // std::cout << "default scene: " << kDefaultScene << std::endl;
 
-            fpEncOut = new std::ofstream(szOutFilePath, std::ios::out | std::ios::binary | std::ios::app);
+    //         fpEncOut = new std::ofstream(szOutFilePath, std::ios::out | std::ios::binary | std::ios::app);
 
-            if (!fpEncOut)
-            {
-                std::ostringstream err;
-                err << "/n/n/nunable to open output file: " << szOutFilePath << std::endl;
-                throw std::invalid_argument(err.str());
-            }
-        }
+    //         if (!fpEncOut)
+    //         {
+    //             std::ostringstream err;
+    //             err << "/n/n/nunable to open output file: " << szOutFilePath << std::endl;
+    //             throw std::invalid_argument(err.str());
+    //         }
+    //     }
 
 }
 
