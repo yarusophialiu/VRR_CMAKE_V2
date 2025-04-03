@@ -489,11 +489,11 @@ EncodeDecode::EncodeDecode(const SampleAppConfig& config) : SampleApp(config)
         );
 
         initPairList();
-        if (!mConditions.empty()) {
-            mCurrentCondition = mConditions[0];
-        } else {
-            std::cerr << "Error: mConditions is empty! No conditions were generated.\n";
-        }
+        // if (!mConditions.empty()) {
+        //     mCurrentCondition = mConditions[0];
+        // } else {
+        //     std::cerr << "Error: mConditions is empty! No conditions were generated.\n";
+        // }
         // mCurrentCondition = mConditions[0];
 }
 
@@ -512,9 +512,11 @@ void EncodeDecode::onLoad(RenderContext* pRenderContext)
 
     // set bitrate, framerate, resolution for the first pair
     generateSettings();
-    // set bitrate, scene for the first pair
-    std::cout << "onloading mCurrentTrial " << mCurrentTrial << std::endl;
-    mCurrentCondition = mConditions[mCurrentTrial];
+
+
+    // // set bitrate, scene for the first pair
+    // std::cout << "onloading mCurrentTrial " << mCurrentTrial << std::endl;
+    // mCurrentCondition = mConditions[mCurrentTrial];
 
     initEncoder();
     initDecoder();
@@ -744,17 +746,6 @@ void EncodeDecode::switchToNextPair() {
     std::cout << "Switching pair to condition: " << mCurrentTrial << " of " << mConditions.size() << "\n";
 
     mCurrentCondition = mConditions[mCurrentTrial];
-
-
-    // std::string inferenceDir1 = getInferencePathNameForStimulus(&mCurrentCondition.stimulus1);
-    // std::string inferenceFileName1 = getInferenceFileNameForStimulus(&mCurrentCondition.stimulus1);
-    // std::string inferenceFilePath1 = inferenceDir1 + inferenceFileName1;
-    // readCsv(inferenceFilePath1, mCurrentCondition.stimulus1.resolution, mCurrentCondition.stimulus1.framerate);
-
-    // std::string inferenceDir2 = getInferencePathNameForStimulus(&mCurrentCondition.stimulus2);
-    // std::string inferenceFileName2 = getInferenceFileNameForStimulus(&mCurrentCondition.stimulus2);
-    // std::string inferenceFilePath2 = inferenceDir2 + inferenceFileName2;
-    // readCsv(inferenceFilePath2, mCurrentCondition.stimulus2.resolution, mCurrentCondition.stimulus2.framerate);
 
     std::cout << "mCurrentTrial " << mCurrentTrial << std::endl;
 
@@ -1127,8 +1118,8 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
 
             applyNewSetting(mSettings[mCurrentSettingIndex]);
         }
-        Scene::UpdateFlags updates = mpScene->update(pRenderContext, mCurrentCondition.stimulus1.speed * mAnimationTimeSecs); // 2* timesec, 0.5
-        // Scene::UpdateFlags updates = mpScene->update(pRenderContext, mCurrentCondition.stimulus1.speed * timeSecs); // 2* timesec, 0.5
+        Scene::UpdateFlags updates = mpScene->update(pRenderContext, speed * mAnimationTimeSecs); // 2* timesec, 0.5
+        // Scene::UpdateFlags updates = mpScene->update(pRenderContext, speed * timeSecs); // 2* timesec, 0.5
         // Scene::UpdateFlags updates = mpScene->update(pRenderContext, mCurrentCondition.stimulus1.speed * ((double)mTimeFrames / frameRate)); // 2* timesec, 0.5
         std::cout << "Scene animation duration(s): " << mpScene->getAnimationDurationSecs() << "\n";
         if (is_set(updates, Scene::UpdateFlags::GeometryChanged))
@@ -2977,7 +2968,7 @@ int runMain(int argc, char** argv)
     unsigned int bitrate = 8000;
     unsigned int framerate = 30;
     std::string scene = "crytek_sponza";
-    unsigned int speedInput = 1;
+    unsigned int speedInput = 2;
     std::string scenePath = "crytek_sponza/path1_seg1.fbx"; // no texture, objects are black
 
     std::cout << "\n\nframerate runmain  " << framerate << "\n";
