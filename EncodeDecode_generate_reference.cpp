@@ -504,8 +504,8 @@ void EncodeDecode::onLoad(RenderContext* pRenderContext)
     mpRenderContextDecode = pRenderContext;
 
     // set bitrate, framerate, resolution for the first pair
-    generateSettings();
-    applyNewSetting(mSettings[mCurrentSettingIndex]);
+    // generateSettings();
+    // applyNewSetting(mSettings[mCurrentSettingIndex]);
     loadScene(kDefaultScene, getTargetFbo().get());
 
     initEncoder();
@@ -1010,14 +1010,10 @@ void EncodeDecode::processNNOutput(std::vector<float>& outputResTensorValues,
 void EncodeDecode::generateSettings()
 {
     std::vector<int> speeds = {1, 2, 3};
-    std::vector<int> bitrates = {1000, 1500, 2000, 3000, 4000};
-    std::vector<int> framerates = {30, 40, 50, 60, 70, 80, 90, 100, 110, 120};
+    std::vector<int> bitrates = {8000};
+    std::vector<int> framerates = {166};
     std::vector<std::pair<int, int>> resolutions = {
         {1920, 1080},
-        {1536, 864},
-        {1280, 720},
-        {854, 480},
-        {640, 360}
     };
 
     for (int s : speeds)
@@ -1093,40 +1089,37 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
     static double timeSecs = 0; // timeSecs is the time through animation, i.e. camera path
     if (mpScene)
     {
-        static uint32_t fcount = 0;
-        static int fCount_rt = 0;
-
         if (mAnimationTimeSecs > 2.0)
         {
-            // TODO: reset framerate, bitrate, resolution, speed
-            if (fpEncOut) {
-                fpEncOut->close(); // end h265 file but the rendering continues
-                fpEncOut = nullptr;
-            }
-            mCurrentSettingIndex++;
-            mAnimationTimeSecs = 0.0;
-            fCount_rt = 0;
-            fcount = 0;
+            std::exit(0);
+            // // TODO: reset framerate, bitrate, resolution, speed
+            // if (fpEncOut) {
+            //     fpEncOut->close(); // end h265 file but the rendering continues
+            //     fpEncOut = nullptr;
+            // }
+            // mCurrentSettingIndex++;
+            // mAnimationTimeSecs = 0.0;
 
-            if (mCurrentSettingIndex >= mSettings.size())
-            {
-                std::cout << "Done rendering all settings.\n";
-                return;
-            }
+            // if (mCurrentSettingIndex >= mSettings.size())
+            // {
+            //     std::cout << "Done rendering all settings.\n";
+            //     return;
+            // }
 
-            applyNewSetting(mSettings[mCurrentSettingIndex]);
+            // applyNewSetting(mSettings[mCurrentSettingIndex]);
         }
         Scene::UpdateFlags updates = mpScene->update(pRenderContext, speed * mAnimationTimeSecs); // 2* timesec, 0.5
         // Scene::UpdateFlags updates = mpScene->update(pRenderContext, speed * timeSecs); // 2* timesec, 0.5
-        // Scene::UpdateFlags updates = mpScene->update(pRenderContext, mCurrentCondition.stimulus1.speed * ((double)mTimeFrames / frameRate)); // 2* timesec, 0.5
         std::cout << "Scene animation duration(s): " << mpScene->getAnimationDurationSecs() << "\n";
         if (is_set(updates, Scene::UpdateFlags::GeometryChanged))
             FALCOR_THROW("This sample does not support scene geometry changes.");
         if (is_set(updates, Scene::UpdateFlags::RecompileNeeded))
             FALCOR_THROW("This sample does not support scene changes that require shader recompilation.");
 
+        static uint32_t fcount = 0;
+        static int fCount_rt = 0;
         std::cout << "fCount_rt " << fCount_rt << "\n";
-        // std::cout << "timeSecs " << timeSecs << "\n";
+        std::cout << "timeSecs " << timeSecs << "\n";
         std::cout << "mAnimationTimeSecs " << mAnimationTimeSecs << "\n";
         // std::cout << "mTimeFrames " << mTimeFrames << ", mTimeFrames / frameRate" << (double)mTimeFrames / frameRate << "\n";
         std::cout << "fcount " << fcount << "\n";
@@ -1154,14 +1147,11 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
         pRenderContext->blit(mpRenderGraph->getOutput("TAA.colorOut")->getSRV(), mPEncoderInputTexture864->getRTV(0));
         pRenderContext->blit(mpRenderGraph->getOutput("TAA.colorOut")->getSRV(), mPEncoderInputTexture1080->getRTV(0));
 
-
-
-        if (outputReferenceFrames && (fCount_rt >= 1) && (fCount_rt <= 10))
+        if (outputReferenceFrames && (fCount_rt >= 1))
         {
-            // snprintf(szRefOutFilePath, sizeof(szRefOutFilePath), "%s%d.bmp", refBaseFilePath, fCount_rt);
+            snprintf(szRefOutFilePath, sizeof(szRefOutFilePath), "%s%d.bmp", refBaseFilePath, fCount_rt);
             // mpRtOut->captureToFile(0, 0, szRefOutFilePath, Bitmap::FileFormat::BmpFile, Bitmap::ExportFlags::None, false);
-            // mpRenderGraph->getOutput("TAA.colorOut")->asTexture()->captureToFile(0, 0, szRefOutFilePath, Bitmap::FileFormat::BmpFile, Bitmap::ExportFlags::None, false);
-            mpRenderGraph->getOutput("TAA.colorOut")->asTexture()->captureToFile(0, 0, "1.bmp", Bitmap::FileFormat::BmpFile, Bitmap::ExportFlags::None, false);
+            mpRenderGraph->getOutput("TAA.colorOut")->asTexture()->captureToFile(0, 0, szRefOutFilePath, Bitmap::FileFormat::BmpFile, Bitmap::ExportFlags::None, false);
 
             // std::string path = refBaseFilePath + std::to_string(mTimeFrames) + ".png";
             // mpRenderGraph->getOutput("TAA.colorOut")->asTexture()->captureToFile(0, 0, path, Bitmap::FileFormat::PngFile);
@@ -1185,7 +1175,7 @@ void EncodeDecode::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& 
             {
                 std::exit(0);
             }
-            // timeSecs += 1.0 / frameRate; // disable line 520 about update timeSecs mTimeSecs
+            timeSecs += 1.0 / frameRate; // disable line 520 about update timeSecs mTimeSecs
             mAnimationTimeSecs += 1.0 / frameRate; // mTimeSecs
         }
 
@@ -2804,8 +2794,8 @@ void EncodeDecode::setFrameRate(unsigned int fps)
         mEncoderInitializeParams.frameRateDen = 1;
         NV_ENC_RECONFIGURE_PARAMS reconfig_params = {0};
         reconfig_params.reInitEncodeParams = mEncoderInitializeParams;
-        reconfig_params.resetEncoder = 1;
-        reconfig_params.forceIDR = 1;
+        reconfig_params.resetEncoder = 0;
+        // reconfig_params.forceIDR = 1;
         reconfig_params.version = NV_ENC_RECONFIGURE_PARAMS_VER;
         // NvEncReconfigureEncoder(mHEncoder, &reconfig_params);
         NVENC_API_CALL(mNVEnc.nvEncReconfigureEncoder(mHEncoder, &reconfig_params));
@@ -2835,8 +2825,8 @@ void EncodeDecode::setResolution(unsigned int width, unsigned int height)
         NV_ENC_RECONFIGURE_PARAMS reconfig_params;
         // memset(&reconfig_params, 0, sizeof(reconfig_params));
         reconfig_params.reInitEncodeParams = mEncoderInitializeParams;
-        reconfig_params.resetEncoder = 1;
-        reconfig_params.forceIDR = 1;
+        reconfig_params.resetEncoder = 0;
+        reconfig_params.forceIDR = 0;
         reconfig_params.version = NV_ENC_RECONFIGURE_PARAMS_VER;
         NVENC_API_CALL(mNVEnc.nvEncReconfigureEncoder(mHEncoder, &reconfig_params));
     }
@@ -2865,16 +2855,16 @@ void EncodeDecode::setSpeed(float input)
     speed = input;
     std::cout << "\n\n\nsetSpeed  " << speed << "\n";
 
-    if (mHEncoder != nullptr)
-    {
-        NV_ENC_RECONFIGURE_PARAMS reconfig_params;
-        // memset(&reconfig_params, 0, sizeof(reconfig_params));
-        reconfig_params.reInitEncodeParams = mEncoderInitializeParams;
-        reconfig_params.resetEncoder = 1;
-        reconfig_params.forceIDR = 1;
-        reconfig_params.version = NV_ENC_RECONFIGURE_PARAMS_VER;
-        NVENC_API_CALL(mNVEnc.nvEncReconfigureEncoder(mHEncoder, &reconfig_params));
-    }
+    // if (mHEncoder != nullptr)
+    // {
+    //     NV_ENC_RECONFIGURE_PARAMS reconfig_params;
+    //     // memset(&reconfig_params, 0, sizeof(reconfig_params));
+    //     reconfig_params.reInitEncodeParams = mEncoderInitializeParams;
+    //     reconfig_params.resetEncoder = 1;
+    //     reconfig_params.forceIDR = 1;
+    //     reconfig_params.version = NV_ENC_RECONFIGURE_PARAMS_VER;
+    //     NVENC_API_CALL(mNVEnc.nvEncReconfigureEncoder(mHEncoder, &reconfig_params));
+    // }
 }
 
 
@@ -2964,18 +2954,32 @@ void EncodeDecode::renderRT(RenderContext* pRenderContext, const ref<Fbo>& pTarg
 
 int runMain(int argc, char** argv)
 {
-    std::cout.setf( std::ios_base::unitbuf );
+    unsigned int bitrate = std::stoi(argv[1]);
+    unsigned int framerate = std::stoi(argv[2]);
+    unsigned int width = std::stoi(argv[3]);
+    unsigned int height = std::stoi(argv[4]);
+    std::string scene = argv[5];
+    unsigned int speedInput = std::stoi(argv[6]);
+    std::string scenePath = argv[7];
 
-    std::string scene = argv[1];
-    std::string scenePath = argv[2];
+    // unsigned int width = 1920; // 1920 1280
+    // unsigned int height = 1080; // 1080 720
+    // unsigned int bitrate = 8000;
+    // unsigned int framerate = 166;
+    // std::string scene = "bedroom";
+    // unsigned int speedInput = 1;
+    // std::string scenePath = "bedroom/path1_seg1.fbx"; // no texture, objects are black
 
-    unsigned int width = 1920; // 1920 1280
-    unsigned int height = 1080; // 1080 720
-    // std::string scene = "crytek_sponza";
-    // std::string scenePath = "crytek_sponza/path1_seg1.fbx"; // no texture, objects are black
-
+    std::cout << "\n\nframerate runmain  " << framerate << "\n";
+    std::cout << "bitrate runmain  " << bitrate << "\n";
+    std::cout << "width runmain  " << width << "\n";
+    std::cout << "height runmain  " << height << "\n";
     std::cout << "scene " << scene << std::endl;
+    std::cout << "speed " << speedInput << std::endl;
     std::cout << "scenePath " << scenePath << std::endl;
+    //std::cout << "\n\nbitrate std::stoi(argv[1])  " << std::stoi(argv[1]) << "/n";
+    //std::cout << "\n\nnframerate std::stoi(argv[2])  " << std::stoi(argv[2]) << "/n";
+
 
     SampleAppConfig config;
     config.windowDesc.title = "EncodeDecode";
@@ -2985,10 +2989,10 @@ int runMain(int argc, char** argv)
     config.windowDesc.resizableWindow = true;
 
     EncodeDecode encodeDecode(config);
-    // encodeDecode.setBitRate(bitrate); // 3000 bits per second,  3000 000 bits per second
-    // encodeDecode.setFrameRate(framerate);
+    encodeDecode.setBitRate(bitrate); // 3000 bits per second,  3000 000 bits per second
+    encodeDecode.setFrameRate(framerate);
     encodeDecode.setDefaultScene(scenePath);
-    // encodeDecode.setSpeed(speedInput);
+    encodeDecode.setSpeed(speedInput);
 
     return encodeDecode.run();
 }

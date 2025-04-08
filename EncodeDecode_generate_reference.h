@@ -566,7 +566,7 @@ public:
 
     bool mRayTrace = true;
     bool mUseDOF = false;
-    bool outputEncodedFrames = true;   // output as h264 file to C:\Users\15142\new\Falcor\Source\Samples\EncodeDecode\encodedH264
+    bool outputEncodedFrames = false;   // output as h264 file to C:\Users\15142\new\Falcor\Source\Samples\EncodeDecode\encodedH264
     bool outputDecodedFrames = false;   // output as bmp file
     bool outputReferenceFrames = true; // output Falcor rendered frames as bmp file
 

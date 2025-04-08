@@ -4,8 +4,8 @@
 class EncodingSetting
 {
 public:
-    EncodingSetting(int fps, int width, int height, int bitrate)
-        : mFps(fps), mWidth(width), mHeight(height), mBitrate(bitrate) {}
+    EncodingSetting(int speed, int fps, int width, int height, int bitrate)
+        : mSpeed(speed), mFps(fps), mWidth(width), mHeight(height), mBitrate(bitrate) {}
 
     // int getFps() const { return mFps; }
     // int getWidth() const { return mWidth; }
@@ -20,6 +20,7 @@ public:
     }
 
 public:
+    int mSpeed;
     int mFps;
     int mWidth;
     int mHeight;
